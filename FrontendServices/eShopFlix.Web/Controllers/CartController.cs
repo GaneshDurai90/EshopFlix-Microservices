@@ -17,7 +17,15 @@ namespace eShopFlix.Web.Controllers
         {
             if (CurrentUser != null)
             {
-                CartModel cartModel =   await _cartServiceClient.GetUserCartAsync(CurrentUser.UserId);
+                CartModel cartModel = await _cartServiceClient.GetUserCartAsync(CurrentUser.UserId);
+                if (cartModel != null)
+                {
+                    // Preload totals/coupons/shipments/saved for initial render
+                    ViewBag.Totals = await _cartServiceClient.GetTotalsAsync(cartModel.Id);
+                    ViewBag.Coupons = await _cartServiceClient.GetCouponsAsync(cartModel.Id) ?? new List<CouponModel>();
+                    ViewBag.Shipments = await _cartServiceClient.GetShipmentsAsync(cartModel.Id) ?? new List<ShipmentModel>();
+                    ViewBag.Saved = await _cartServiceClient.GetSavedForLaterAsync(cartModel.Id) ?? new List<SavedForLaterItemModel>();
+                }
                 return View(cartModel);
             }
             else
@@ -81,6 +89,81 @@ namespace eShopFlix.Web.Controllers
                 return RedirectToAction("Index", "Payment");
             }
             return View();
+        }
+
+        // ===== New UI endpoints for partial sections =====
+        [HttpGet]
+        public async Task<IActionResult> OrderSummary(long cartId)
+        {
+            var totals = await _cartServiceClient.GetTotalsAsync(cartId);
+            return PartialView("~/Views/Cart/Partials/_OrderSummaryPartial.cshtml", totals);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Coupons(long cartId)
+        {
+            var coupons = await _cartServiceClient.GetCouponsAsync(cartId) ?? new List<CouponModel>();
+            ViewBag.CartId = cartId;
+            return PartialView("~/Views/Cart/Partials/_CouponsPartial.cshtml", coupons);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Shipping(long cartId)
+        {
+            var shipments = await _cartServiceClient.GetShipmentsAsync(cartId) ?? new List<ShipmentModel>();
+            ViewBag.CartId = cartId;
+            return PartialView("~/Views/Cart/Partials/_ShippingPartial.cshtml", shipments);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Saved(long cartId)
+        {
+            var saved = await _cartServiceClient.GetSavedForLaterAsync(cartId) ?? new List<SavedForLaterItemModel>();
+            ViewBag.CartId = cartId;
+            return PartialView("~/Views/Cart/Partials/_SavedForLaterPartial.cshtml", saved);
+        }
+
+        // ===== Mutations =====
+        [HttpPost]
+        public async Task<IActionResult> ApplyCoupon(long cartId, string code, decimal amount)
+        {
+            var ok = await _cartServiceClient.ApplyCouponAsync(cartId, code, amount);
+            return Json(new { success = ok });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> RemoveCoupon(long cartId, string code)
+        {
+            var ok = await _cartServiceClient.RemoveCouponAsync(cartId, code);
+            return Json(new { success = ok });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> SelectShipping(long cartId, ShipmentModel model)
+        {
+            var ok = await _cartServiceClient.SelectShippingAsync(cartId, model);
+            return Json(new { success = ok });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Clear(long cartId)
+        {
+            var ok = await _cartServiceClient.ClearAsync(cartId);
+            return Json(new { success = ok });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> SaveForLater(long cartId, int itemId)
+        {
+            var ok = await _cartServiceClient.SaveForLaterAsync(cartId, itemId);
+            return Json(new { success = ok });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> MoveSavedToCart(int savedItemId)
+        {
+            var ok = await _cartServiceClient.MoveSavedToCartAsync(savedItemId);
+            return Json(new { success = ok });
         }
     }
 }

@@ -36,13 +36,16 @@ namespace eShopFlix.Web.Controllers
                     {
                         return Redirect(returnUrl);
                     }
-                    else if (user.Roles.Contains("User"))
-                    {
-                        return RedirectToAction("Index", "Home", new { area = "User" });
-                    }
-                    else if (user.Roles.Contains("Admin"))
+
+                    // After login, land on the public product explore page
+                    // Admins go to Admin dashboard; users go to storefront
+                    if (user.Roles.Contains("Admin"))
                     {
                         return RedirectToAction("Index", "Home", new { area = "Admin" });
+                    }
+                    else
+                    {
+                        return RedirectToAction("Index", "Home");
                     }
                 }
                 else

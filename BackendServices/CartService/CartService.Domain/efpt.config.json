@@ -16,11 +16,51 @@
    "T4TemplatePath": null,
    "Tables": [
       {
+         "Name": "[dbo].[CartAdjustments]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[CartCoupons]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[CartEvents]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[CartItemOptions]",
+         "ObjectType": 0
+      },
+      {
          "Name": "[dbo].[CartItems]",
          "ObjectType": 0
       },
       {
+         "Name": "[dbo].[CartLocks]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[CartPayments]",
+         "ObjectType": 0
+      },
+      {
          "Name": "[dbo].[Carts]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[CartShipments]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[CartTaxes]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[CartTotals]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[SavedForLaterItems]",
          "ObjectType": 0
       }
    ],

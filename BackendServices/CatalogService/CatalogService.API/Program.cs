@@ -3,8 +3,6 @@ using CatalogService.Infrastructure;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-
-// Add services to the container.
 ServiceRegistration.RegisterServices(builder.Services, builder.Configuration);
 
 builder.Services.AddControllers();
@@ -20,7 +18,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-//app.UseStaticFiles(); // Enable serving static files
+app.UseStaticFiles(); // Serve images from wwwroot/images
 app.UseAuthorization();
 
 app.MapControllers();

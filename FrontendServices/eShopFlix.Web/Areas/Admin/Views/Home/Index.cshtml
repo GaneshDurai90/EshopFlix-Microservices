@@ -1,7 +1,45 @@
-﻿
-@{
-    ViewData["Title"] = "Index";
+﻿@{
+    ViewData["Title"] = "Admin Dashboard";
 }
 
-<h1>Admin Dashboard</h1>
+<div class="row g-3">
+    <div class="col-12">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <h2 class="mb-0">Dashboard</h2>
+            <div class="text-muted">@DateTime.UtcNow.ToString("dd MMM yyyy")</div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="small text-muted">Orders (Today)</div>
+                        <div class="display-6">--</div>
+                    </div>
+                    <span class="badge bg-primary">Live</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="small text-muted">Revenue (Today)</div>
+                <div class="display-6">--</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="small text-muted">Active Users</div>
+                <div class="display-6">--</div>
+            </div>
+        </div>
+    </div>
+</div>
 

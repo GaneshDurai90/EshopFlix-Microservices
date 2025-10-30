@@ -17,5 +17,31 @@ public partial class CartItem
 
     public long CartId { get; set; }
 
+    public string Sku { get; set; }
+
+    public string ProductName { get; set; }
+
+    public string TaxCategory { get; set; }
+
+    public decimal DiscountAmount { get; set; }
+
+    public decimal? RowTotal { get; set; }
+
+    public string ProductSnapshotJson { get; set; }
+
+    public string VariantJson { get; set; }
+
+    public bool IsGift { get; set; }
+
+    public int? ParentItemId { get; set; }
+
     public virtual Cart Cart { get; set; }
+
+    public virtual ICollection<CartAdjustment> CartAdjustments { get; set; } = new List<CartAdjustment>();
+
+    public virtual ICollection<CartItemOption> CartItemOptions { get; set; } = new List<CartItemOption>();
+
+    public virtual ICollection<CartItem> InverseParentItem { get; set; } = new List<CartItem>();
+
+    public virtual CartItem ParentItem { get; set; }
 }

@@ -1,7 +1,31 @@
-﻿
-@{
-    ViewData["Title"] = "Index";
+﻿@{
+    ViewData["Title"] = "User Dashboard";
 }
 
-<h1>User Dashboard</h1>
+<div class="row g-3">
+    <div class="col-12">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <h2 class="mb-0">Welcome back</h2>
+            <div class="text-muted">@DateTime.UtcNow.ToString("dd MMM yyyy")</div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h6 class="mb-3">Recent Orders</h6>
+                <div class="text-muted">No recent orders to show.</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h6 class="mb-3">Saved Addresses</h6>
+                <div class="text-muted">Add an address during checkout to save it here.</div>
+            </div>
+        </div>
+    </div>
+</div>
 

@@ -1,45 +1,38 @@
-html {
-    font-size: 14px;
+html { font-size: 14px; }
+@media (min-width: 768px) { html { font-size: 16px; } }
+
+:root{
+    --primary:#0d6efd;
+    --accent:#20c997;
 }
 
-@media (min-width: 768px) {
-    html {
-        font-size: 16px;
-    }
-}
+html { position: relative; min-height: 100%; }
+body { margin-bottom: 60px; background-color:#f8f9fa; }
 
 .btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
     box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
 }
 
-html {
-    position: relative;
-    min-height: 100%;
-}
-
-body {
-    margin-bottom: 60px;
-}
-
-.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
-    color: var(--bs-secondary-color);
-    text-align: end;
-}
-
-.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
-    text-align: start;
-}
+.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder { color: var(--bs-secondary-color); text-align: end; }
+.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder { text-align: start; }
 
 #cartCounter {
-    background-color: #ec5252;
-    border-radius: 4px;
-    color: #ffffff;
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 1.43;
-    margin: -6px 0 0 5px;
-    padding: 0px 7px;
     position: absolute;
+    top: -8px; left: -6px;
+    background-color: #dc3545;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 2px 6px;
     white-space: nowrap;
     z-index: 1;
 }
+
+.object-fit-cover{ object-fit: cover; }
+
+/* Cards */
+.card:hover{ transform: translateY(-2px); transition: transform .1s ease-in; }
+
+footer a { text-decoration: none; }

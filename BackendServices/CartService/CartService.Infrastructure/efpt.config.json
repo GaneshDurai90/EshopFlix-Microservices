@@ -16,12 +16,108 @@
    "T4TemplatePath": null,
    "Tables": [
       {
+         "Name": "[dbo].[CartAdjustments]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[CartCoupons]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[CartEvents]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[CartItemOptions]",
+         "ObjectType": 0
+      },
+      {
          "Name": "[dbo].[CartItems]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[CartLocks]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[CartPayments]",
          "ObjectType": 0
       },
       {
          "Name": "[dbo].[Carts]",
          "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[CartShipments]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[CartTaxes]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[CartTotals]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[SavedForLaterItems]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[SP_Cart_AddAdjustment]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_Cart_AddItem]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_Cart_ApplyCoupon]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_Cart_Clear]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_Cart_Create]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_Cart_Get]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_Cart_Lock]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_Cart_RecalculateTotals]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_Cart_RemoveCoupon]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_Cart_RemoveItem]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_Cart_SelectShippingMethod]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_Cart_SetPayment]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_Cart_Unlock]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_Cart_UpdateItemQuantity]",
+         "ObjectType": 1
       }
    ],
    "UiHint": null,

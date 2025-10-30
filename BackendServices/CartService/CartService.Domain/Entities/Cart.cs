@@ -15,5 +15,37 @@ public partial class Cart
 
     public bool IsActive { get; set; }
 
+    public string CurrencyCode { get; set; }
+
+    public string Channel { get; set; }
+
+    public Guid? AnonymousId { get; set; }
+
+    public DateTime LastUpdatedDate { get; set; }
+
+    public string Locale { get; set; }
+
+    public string CountryCode { get; set; }
+
+    public byte[] Version { get; set; }
+
+    public virtual ICollection<CartAdjustment> CartAdjustments { get; set; } = new List<CartAdjustment>();
+
+    public virtual ICollection<CartCoupon> CartCoupons { get; set; } = new List<CartCoupon>();
+
+    public virtual ICollection<CartEvent> CartEvents { get; set; } = new List<CartEvent>();
+
     public virtual ICollection<CartItem> CartItems { get; set; } = new List<CartItem>();
+
+    public virtual CartLock CartLock { get; set; }
+
+    public virtual ICollection<CartPayment> CartPayments { get; set; } = new List<CartPayment>();
+
+    public virtual ICollection<CartShipment> CartShipments { get; set; } = new List<CartShipment>();
+
+    public virtual ICollection<CartTaxis> CartTaxes { get; set; } = new List<CartTaxis>();
+
+    public virtual CartTotal CartTotal { get; set; }
+
+    public virtual ICollection<SavedForLaterItem> SavedForLaterItems { get; set; } = new List<SavedForLaterItem>();
 }

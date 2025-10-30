@@ -7,85 +7,90 @@ namespace eShopFlix.Web.Controllers
 {
     public class PaymentController : BaseController
     {
-        readonly CartServiceClient _cartServiceClient;
-        readonly PaymentServiceClient _paymentServiceClient;
-        readonly IConfiguration _configuration;
-        public PaymentController(CartServiceClient cartServiceClient,PaymentServiceClient paymentServiceClient, IConfiguration configuration )
+        private readonly CartServiceClient _cartServiceClient;
+        private readonly PaymentServiceClient _paymentServiceClient;
+        private readonly IConfiguration _configuration;
+        public PaymentController(CartServiceClient cartServiceClient, PaymentServiceClient paymentServiceClient, IConfiguration configuration)
         {
             _cartServiceClient = cartServiceClient;
-            _paymentServiceClient= paymentServiceClient;
+            _paymentServiceClient = paymentServiceClient;
             _configuration = configuration;
         }
-        public IActionResult Index()
+        public async Task<IActionResult> Index()
         {
             if (CurrentUser == null)
             {
                 return RedirectToAction("Login", "Account");
             }
-            CartModel cartModel = _cartServiceClient.GetUserCartAsync(CurrentUser.UserId).Result;
+            var cartModel = await _cartServiceClient.GetUserCartAsync(CurrentUser.UserId);
             if (cartModel != null)
             {
-                PaymentModel payment = new PaymentModel();
-                payment.Cart= cartModel;
-                payment.Currency = "INR";
-                payment.Description = string.Join(",", cartModel.CartItems.Select(x => x.Name));
-                payment.GrandTotal =cartModel.GrandTotal;
-
-                payment.RazorpayKey = _configuration["Razorpay:Key"];
-                RazorPayOrderModel razorpayOrder = new RazorPayOrderModel
+                var payment = new PaymentModel
+                {
+                    Cart = cartModel,
+                    Currency = "INR",
+                    Description = string.Join(",", cartModel.CartItems.Select(x => x.Name)),
+                    GrandTotal = cartModel.GrandTotal,
+                    RazorpayKey = _configuration["RazorPay:Key"]
+                };
+                var razorpayOrder = new RazorPayOrderModel
                 {
                     Amount = Convert.ToInt32(payment.GrandTotal * 100),
                     Currency = payment.Currency,
                     Receipt = Guid.NewGuid().ToString()
                 };
-                payment.OrderId = _paymentServiceClient.CreateOrderAsync(razorpayOrder).Result;
+                payment.OrderId = await _paymentServiceClient.CreateOrderAsync(razorpayOrder) ?? string.Empty;
+                payment.Receipt = razorpayOrder.Receipt; // ensure we round-trip the receipt to the Status action
                 return View(payment);
 
             }
             return RedirectToAction("Index", "Cart");
         }
 
-        public IActionResult Status (IFormCollection form)
+        public async Task<IActionResult> Status(IFormCollection form)
         {
             if (!string.IsNullOrEmpty(form["rzp_paymentid"]))
             {
-                string paymentId = form["rzp_paymentid"];
-                string orderId = form["rzp_orderid"];
-                string signature = form["rzp_signature"];
-                string transactionId = form["Receipt"];
-                string currency = form["Currency"];
+                string paymentId = form["rzp_paymentid"]!;
+                string orderId = form["rzp_orderid"]!;
+                string signature = form["rzp_signature"]!;
+                string transactionId = form["Receipt"]!;
+                string currency = form["Currency"]!;
 
-                PaymentConfirmModel payment = new PaymentConfirmModel
+                var payment = new PaymentConfirmModel
                 {
                     PaymentId = paymentId,
                     OrderId = orderId,
                     Signature = signature
                 };
-                string status = _paymentServiceClient.VerifyPaymentAsync(payment).Result;
+                string status = await _paymentServiceClient.VerifyPaymentAsync(payment);
                 if (status == "captured" || status == "completed")
                 {
-                    CartModel cart = _cartServiceClient.GetUserCartAsync(CurrentUser.UserId).Result;
-                    TransactionModel model = new TransactionModel();
+                    var cart = await _cartServiceClient.GetUserCartAsync(CurrentUser!.UserId);
+                    if (cart == null)
+                    {
+                        ViewBag.Message = "Cart not found after payment. Please contact support with your payment id.";
+                        return View();
+                    }
+                    var model = new TransactionModel
+                    {
+                        CartId = cart.Id,
+                        Total = cart.Total,
+                        Tax = cart.Tax,
+                        GrandTotal = cart.GrandTotal,
+                        CreatedDate = DateTime.Now,
+                        Status = status,
+                        TransactionId = transactionId,
+                        Currency = currency,
+                        Email = CurrentUser.Email,
+                        Id = paymentId,
+                        UserId = CurrentUser.UserId
+                    };
 
-                    model.CartId = cart.Id;
-                    model.Total = cart.Total;
-                    model.Tax = cart.Tax;
-                    model.GrandTotal = cart.GrandTotal;
-                    model.CreatedDate = DateTime.Now;
-
-                    model.Status = status;
-                    model.TransactionId = transactionId;
-                    model.Currency = currency;
-                    model.Email = CurrentUser.Email;
-                    model.Id = paymentId;
-                    model.UserId = CurrentUser.UserId;
-
-                    bool result = _paymentServiceClient.SavePaymentDetailsAsync(model).Result;
+                    bool result = await _paymentServiceClient.SavePaymentDetailsAsync(model);
                     if (result)
                     {
-
-                        _cartServiceClient.MakeCartInActiveAsync(cart.Id).Wait();
-
+                        await _cartServiceClient.MakeCartInActiveAsync(cart.Id);
                         TempData.Set("Receipt", model);
                         return RedirectToAction("Receipt");
                     }

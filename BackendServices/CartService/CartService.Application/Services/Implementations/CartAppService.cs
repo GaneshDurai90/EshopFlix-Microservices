@@ -1,11 +1,11 @@
-﻿using AutoMapper;
+﻿using CartService.Application.Exceptions;
+using AutoMapper;
 using CartService.Application.DTOs;
 using CartService.Application.HttpClients;
 using CartService.Application.Repositories;
-using CartService.Application.Services.Abstractions;
 using CartService.Domain.Entities;
 using Microsoft.Extensions.Configuration;
-
+using CartService.Application.Services.Abstractions;
 
 namespace CartService.Application.Services.Implementations
 {
@@ -16,14 +16,6 @@ namespace CartService.Application.Services.Implementations
         readonly IConfiguration _configuration;
         private readonly CatalogServiceClient _catalogServiceClient;
 
-
-        /// <summary>
-        /// Constructor for CartAppService
-        /// </summary>
-        /// <param name="cartRepository"></param>
-        /// <param name="mapper"></param>
-        /// <param name="configuration"></param>
-        /// <param name="catalogServiceClient"></param>
         public CartAppService(ICartRepository cartRepository, IMapper mapper, IConfiguration configuration, CatalogServiceClient catalogServiceClient)
         {
             _cartRepository = cartRepository;
@@ -32,131 +24,238 @@ namespace CartService.Application.Services.Implementations
             _catalogServiceClient = catalogServiceClient;
         }
 
-
         /// <summary>
-        /// Populates the CartDTO with details from the Cart entity and product information.    
+        /// Enrich CartDTO items with Name/Image from Catalog and compute simple totals
+        /// (used only when we don't have CartTotals available).
         /// </summary>
-        /// <param name="cart"></param>
-        /// <returns></returns>
-        private CartDTO PopulateCartDetails(Cart cart)
+        private async Task<CartDTO> PopulateCartDetailsAsync(Cart cart, CancellationToken ct)
         {
-            try
-            {
-                CartDTO cartModel = _mapper.Map<CartDTO>(cart);
+            var cartModel = _mapper.Map<CartDTO>(cart);
 
-                var productIds = cart.CartItems.Select(x => x.ItemId).ToArray();
-                var products = _catalogServiceClient.GetByIdsAsync(productIds).Result;
-
-                if (cartModel.CartItems.Count > 0)
-                {
-                    cartModel.CartItems.ForEach(x =>
-                    {
-                        var product = products.FirstOrDefault(p => p.ProductId == x.ItemId);
-                        if (product != null)
-                        {
-                            x.Name = product.Name;
-                            x.ImageUrl = product.ImageUrl;
-                        }
-                    });
-
-                    foreach (var item in cartModel.CartItems)
-                    {
-                        cartModel.Total += item.UnitPrice * item.Quantity;
-                    }
-                    cartModel.Tax = cartModel.Total * Convert.ToDecimal(_configuration["Tax"]) / 100;
-                    cartModel.GrandTotal = cartModel.Total + cartModel.Tax;
-                }
+            if (cartModel?.CartItems == null || cartModel.CartItems.Count == 0)
                 return cartModel;
-            }
-            catch (Exception ex)
+
+            // fetch product info once
+            var productIds = cart.CartItems.Select(x => x.ItemId).Distinct().ToArray();
+            var products = await _catalogServiceClient.GetByIdsAsync(productIds, ct);
+
+            foreach (var x in cartModel.CartItems)
             {
-                throw ex;
+                var p = products.FirstOrDefault(p => p.ProductId == x.ItemId);
+                if (p != null)
+                {
+                    x.Name = p.Name;
+                    x.ImageUrl = p.ImageUrl;
+                }
+                cartModel.Total += x.UnitPrice * x.Quantity;
             }
+
+            // tax from config if totals aren't available
+            var taxPct = decimal.TryParse(_configuration["Tax"], out var t) ? t : 0m;
+            cartModel.Tax = Math.Round(cartModel.Total * (taxPct / 100m), 2);
+            cartModel.GrandTotal = cartModel.Total + cartModel.Tax;
+
+            return cartModel;
         }
 
+        /// <summary>
+        /// Prefer this for read endpoints: uses snapshot (multi-result) + enrich.
+        /// </summary>
+        private async Task<CartDTO> BuildDtoFromSnapshotAsync(long cartId, CancellationToken ct)
+        {
+            var snap = await _cartRepository.GetSnapshotAsync(cartId, ct);
+
+            // Map core + items
+            var cart = snap.Cart.FirstOrDefault();
+            if (cart == null) return null;
+
+            var dto = _mapper.Map<CartDTO>(cart);
+            dto.CartItems = _mapper.Map<List<CartItemDTO>>(snap.Items);
+
+            // Enrich items from Catalog
+            if (dto.CartItems?.Count > 0)
+            {
+                var ids = snap.Items.Select(i => i.ItemId).Distinct().ToArray();
+                var products = await _catalogServiceClient.GetByIdsAsync(ids, ct);
+
+                foreach (var line in dto.CartItems)
+                {
+                    var p = products.FirstOrDefault(x => x.ProductId == line.ItemId);
+                    if (p != null)
+                    {
+                        line.Name = p.Name;
+                        line.ImageUrl = p.ImageUrl;
+                    }
+                }
+            }
+
+            // Totals: if CartTotals exists, use that; else compute
+            var totals = snap.Totals.FirstOrDefault();
+            if (totals != null)
+            {
+                dto.Total = totals.Subtotal;
+                dto.Tax = totals.TaxTotal;
+                dto.GrandTotal = totals.GrandTotal;
+            }
+            else
+            {
+                // simple fallback
+                dto.Total = snap.Items.Sum(i => i.UnitPrice * i.Quantity);
+                dto.Tax = snap.Taxes.Sum(t => t.Amount);
+                var shipping = snap.Shipments.Where(s => s.IsSelected).Sum(s => s.Cost);
+                var discount = snap.Coupons.Sum(c => c.DiscountAmount) +
+                               snap.Adjustments.Where(a => a.Amount < 0).Sum(a => a.Amount);
+                dto.GrandTotal = dto.Total + dto.Tax + shipping + discount;
+            }
+
+            // You can also expose coupons/shipments/etc on your DTO if it has fields
+            return dto;
+        }
+
+        // ---------- Commands ----------
 
         /// <summary>
-        /// Adds an item to the cart for a specific user.
-        public async  Task<CartDTO> AddItem(long UserId, CartItem item)
-        { 
-            CartItem cartItem = new CartItem
+        /// Add an item (creates cart if needed), then returns cart DTO (fresh read).
+        /// </summary>
+        public async Task<CartDTO> AddItem(long userId, CartItem item)
+        {
+            var errors = new Dictionary<string, string[]>();
+            if (item.Quantity <= 0) errors[nameof(item.Quantity)] = new[] { "Quantity must be greater than zero." };
+            if (item.UnitPrice < 0) errors[nameof(item.UnitPrice)] = new[] { "UnitPrice cannot be negative." };
+            if (errors.Count > 0) throw AppException.Validation(errors);
+
+            var cart = await _cartRepository.AddItem(userId, new CartItem
             {
                 CartId = item.CartId,
                 ItemId = item.ItemId,
                 UnitPrice = item.UnitPrice,
                 Quantity = item.Quantity,
-                
-            };
-            Cart cart = await _cartRepository.AddItem(UserId,cartItem);
-            return _mapper.Map<CartDTO>(cart);
+                TaxCategory = item.TaxCategory,
+                Sku = item.Sku,
+                ProductName = item.ProductName,
+                ProductSnapshotJson = item.ProductSnapshotJson,
+                VariantJson = item.VariantJson,
+                IsGift = item.IsGift,
+                ParentItemId = item.ParentItemId
+            });
+
+            return await BuildDtoFromSnapshotAsync(cart.Id, CancellationToken.None);
         }
 
-        /// <summary>
-        /// Deletes an item from the cart by CartId and ItemId.
-        public async Task<int> DeleteItem(int CartId, int ItemId)
+        public async Task<int> DeleteItem(int cartId, int itemId)
         {
-            return await _cartRepository.DeleteItem(CartId, ItemId);
+            var affected = await _cartRepository.DeleteItem(cartId, itemId);
+            if (affected == 0)
+                throw AppException.NotFound("cart.item", $"Item {itemId} not found in cart {cartId}");
+            return affected;
         }
 
-        /// <summary>
-        /// Retrieves a cart by CartId, including its items, if it is active.   
-        /// </summary>
-        /// <param name="CartId"></param>
-        /// <returns></returns>
-        public async Task<CartDTO> GetCart(int CartId)
+        public async Task<int> UpdateQuantity(int cartId, int itemId, int quantity)
         {
-          Cart cart = await _cartRepository.GetCart(CartId);
-            if (cart == null)
-            {
-                return  null;
-            }
-            return _mapper.Map<CartDTO>(cart);
+            if (quantity == 0)
+                throw AppException.Business("cart.quantity.nochange", "Quantity change cannot be zero.");
+
+            var affected = await _cartRepository.UpdateQuantity(cartId, itemId, quantity);
+            if (affected == 0)
+                throw AppException.NotFound("cart.item", $"Item {itemId} not found in cart {cartId}");
+            return affected;
         }
 
-        /// <summary>
-        /// Gets the total count of items in the user's active cart.
-        public async Task<int> GetCartItemCount(long UserId)
+        public async Task<bool> MakeInActive(int cartId)
         {
-            if(UserId> 0)
-           return await _cartRepository.GetCartItemCount(UserId);
-            
-              return 0;
+            return await _cartRepository.MakeInActive(cartId);
         }
 
-        /// <summary>
-        /// Gets the items in the user's cart by CartId.
-        public async Task<IEnumerable<CartItemDTO>> GetCartItems(long CartId)
+        // ---------- Queries ----------
+
+        public async Task<CartDTO> GetCart(int cartId)
         {
-              var data= await _cartRepository.GetCartItems(CartId);
-            if (data == null)
-            {
-                return _mapper.Map<IEnumerable<CartItemDTO>>(null);
-                
-            }
-            return _mapper.Map<IEnumerable<CartItemDTO>>(data);
-
+            var dto = await BuildDtoFromSnapshotAsync(cartId, CancellationToken.None);
+            if (dto == null)
+                throw AppException.NotFound("cart", $"Cart {cartId} not found or inactive");
+            return dto;
         }
 
-        public async Task<CartDTO> GetUserCart(long UserId)
+        public async Task<int> GetCartItemCount(long userId)
         {
-           Cart cart = await _cartRepository.GetUserCart(UserId);
-            if (cart != null)
-            {
-                CartDTO cartmodel = PopulateCartDetails(cart);
-                return  await Task.FromResult(cartmodel);
-            }
-            return await Task.FromResult<CartDTO>(null);
-
+            return userId > 0 ? await _cartRepository.GetCartItemCount(userId) : 0;
         }
 
-        public  async Task<bool> MakeInActive(int CartId)
+        public async Task<IEnumerable<CartItemDTO>> GetCartItems(long cartId)
         {
-           return await _cartRepository.MakeInActive(CartId);
+            var data = await _cartRepository.GetCartItems(cartId);
+            return _mapper.Map<IEnumerable<CartItemDTO>>(data ?? Enumerable.Empty<CartItem>());
         }
 
-        public  async Task<int> UpdateQuantity(int CartId, int ItemId, int Quantity)
+        public async Task<CartDTO> GetUserCart(long userId)
         {
-            return await _cartRepository.UpdateQuantity(CartId, ItemId, Quantity);
+            var cart = await _cartRepository.GetUserCart(userId);
+            if (cart == null) return null;
+
+            return await BuildDtoFromSnapshotAsync(cart.Id, CancellationToken.None);
         }
+
+        // ---------- New Business APIs (Coupons, Options, Shipping, Payments, Totals, Clear) ----------
+
+        public Task ApplyCouponAsync(long cartId, string code, decimal amount, string description = null, CancellationToken ct = default)
+            => _cartRepository.ApplyCouponAsync(cartId, code, amount, description, ct);
+
+        public Task RemoveCouponAsync(long cartId, string code, CancellationToken ct = default)
+            => _cartRepository.RemoveCouponAsync(cartId, code, ct);
+
+        public Task<int> AddItemOptionAsync(int cartItemId, string name, string value, CancellationToken ct = default)
+            => _cartRepository.AddItemOptionAsync(cartItemId, name, value, ct);
+
+        public Task<int> RemoveItemOptionAsync(int cartItemOptionId, CancellationToken ct = default)
+            => _cartRepository.RemoveItemOptionAsync(cartItemOptionId, ct);
+
+        public Task<int> AddAdjustmentAsync(long cartId, int? cartItemId, string type, string description, decimal amount, CancellationToken ct = default)
+            => _cartRepository.AddAdjustmentAsync(cartId, cartItemId, type, description, amount, ct);
+
+        public Task SelectShippingAsync(long cartId, string carrier, string methodCode, string methodName,
+                                        decimal cost, int? estimatedDays, string addressSnapshotJson, CancellationToken ct = default)
+            => _cartRepository.SelectShippingAsync(cartId, carrier, methodCode, methodName, cost, estimatedDays, addressSnapshotJson, ct);
+
+        public Task RecalculateTotalsAsync(long cartId, CancellationToken ct = default)
+            => _cartRepository.RecalculateTotalsAsync(cartId, ct);
+
+        public Task<CartTotal?> GetTotalsAsync(long cartId, CancellationToken ct = default)
+            => _cartRepository.GetTotalsAsync(cartId, ct);
+
+        public Task SetPaymentAsync(long cartId, string method, decimal amountAuthorized, string currencyCode, string status, CancellationToken ct = default)
+            => _cartRepository.SetPaymentAsync(cartId, method, amountAuthorized, currencyCode, status, ct);
+
+        public Task ClearAsync(long cartId, CancellationToken ct = default)
+            => _cartRepository.ClearAsync(cartId, ct);
+
+        public Task<CartSnapshotDto> GetSnapshotAsync(long cartId, CancellationToken ct)
+            => _cartRepository.GetSnapshotAsync(cartId, ct);
+
+        public Task<IReadOnlyList<CartItemOption>> GetItemOptionsAsync(int cartItemId, CancellationToken ct)
+            => _cartRepository.GetItemOptionsAsync(cartItemId, ct);
+
+        public Task<IReadOnlyList<CartCoupon>> GetCouponsAsync(long cartId, CancellationToken ct)
+            => _cartRepository.GetCouponsAsync(cartId, ct);
+
+        public Task<IReadOnlyList<CartAdjustment>> GetAdjustmentsAsync(long cartId, CancellationToken ct)
+            => _cartRepository.GetAdjustmentsAsync(cartId, ct);
+
+        public Task<IReadOnlyList<CartShipment>> GetShipmentsAsync(long cartId, CancellationToken ct)
+            => _cartRepository.GetShipmentsAsync(cartId, ct);
+
+        public Task<IReadOnlyList<CartTaxis>> GetTaxesAsync(long cartId, CancellationToken ct)
+            => _cartRepository.GetTaxesAsync(cartId, ct);
+
+        public Task<IReadOnlyList<CartPayment>> GetPaymentsAsync(long cartId, CancellationToken ct)
+            => _cartRepository.GetPaymentsAsync(cartId, ct);
+
+        public Task<IReadOnlyList<SavedForLaterItem>> GetSavedForLaterAsync(long cartId, CancellationToken ct = default)
+            => _cartRepository.GetSavedForLaterAsync(cartId, ct);
+
+        public Task SaveForLaterAsync(long cartId, int itemId, CancellationToken ct = default)
+            => _cartRepository.SaveForLaterAsync(cartId, itemId, ct);
+
+        public Task MoveSavedToCartAsync(int savedItemId, CancellationToken ct = default)
+            => _cartRepository.MoveSavedToCartAsync(savedItemId, ct);
     }
 }

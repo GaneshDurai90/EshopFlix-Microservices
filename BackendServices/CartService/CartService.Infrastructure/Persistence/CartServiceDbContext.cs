@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using CartService.Domain.Entities;
-using CartService.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
 namespace CartService.Infrastructure.Persistence;
@@ -17,18 +16,259 @@ public partial class CartServiceDbContext : DbContext
 
     public virtual DbSet<Cart> Carts { get; set; }
 
+    public virtual DbSet<CartAdjustment> CartAdjustments { get; set; }
+
+    public virtual DbSet<CartCoupon> CartCoupons { get; set; }
+
+    public virtual DbSet<CartEvent> CartEvents { get; set; }
+
     public virtual DbSet<CartItem> CartItems { get; set; }
+
+    public virtual DbSet<CartItemOption> CartItemOptions { get; set; }
+
+    public virtual DbSet<CartLock> CartLocks { get; set; }
+
+    public virtual DbSet<CartPayment> CartPayments { get; set; }
+
+    public virtual DbSet<CartShipment> CartShipments { get; set; }
+
+    public virtual DbSet<CartTaxis> CartTaxes { get; set; }
+
+    public virtual DbSet<CartTotal> CartTotals { get; set; }
+
+    public virtual DbSet<SavedForLaterItem> SavedForLaterItems { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Cart>(entity =>
+        {
+            entity.HasIndex(e => new { e.UserId, e.IsActive }, "IX_Carts_UserId_IsActive");
+
+            entity.Property(e => e.Channel)
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasDefaultValue("WEB");
+            entity.Property(e => e.CountryCode).HasMaxLength(2);
+            entity.Property(e => e.CurrencyCode)
+                .IsRequired()
+                .HasMaxLength(3)
+                .HasDefaultValue("INR");
+            entity.Property(e => e.LastUpdatedDate).HasDefaultValueSql("(sysdatetime())");
+            entity.Property(e => e.Locale).HasMaxLength(10);
+            entity.Property(e => e.Version)
+                .IsRequired()
+                .IsRowVersion()
+                .IsConcurrencyToken();
+        });
+
+        modelBuilder.Entity<CartAdjustment>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__CartAdju__3214EC07F65DD63F");
+
+            entity.Property(e => e.Amount).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.CreatedDate).HasDefaultValueSql("(sysdatetime())");
+            entity.Property(e => e.Description).HasMaxLength(256);
+            entity.Property(e => e.Type)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            entity.HasOne(d => d.Cart).WithMany(p => p.CartAdjustments)
+                .HasForeignKey(d => d.CartId)
+                .HasConstraintName("FK_CartAdjustments_Carts");
+
+            entity.HasOne(d => d.CartItem).WithMany(p => p.CartAdjustments)
+                .HasForeignKey(d => d.CartItemId)
+                .HasConstraintName("FK_CartAdjustments_Items");
+        });
+
+        modelBuilder.Entity<CartCoupon>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__CartCoup__3214EC071C9A4EBF");
+
+            entity.HasIndex(e => new { e.CartId, e.Code }, "UQ_CartCoupons_Cart_Code").IsUnique();
+
+            entity.Property(e => e.AppliedDate).HasDefaultValueSql("(sysdatetime())");
+            entity.Property(e => e.Code)
+                .IsRequired()
+                .HasMaxLength(64);
+            entity.Property(e => e.Description).HasMaxLength(256);
+            entity.Property(e => e.DiscountAmount).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.IsApplied).HasDefaultValue(true);
+            entity.Property(e => e.Source).HasMaxLength(50);
+
+            entity.HasOne(d => d.Cart).WithMany(p => p.CartCoupons)
+                .HasForeignKey(d => d.CartId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_CartCoupons_Carts");
+        });
+
+        modelBuilder.Entity<CartEvent>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__CartEven__3214EC07ABFAD9D4");
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysdatetime())");
+            entity.Property(e => e.CreatedBy).HasMaxLength(128);
+            entity.Property(e => e.EventType)
+                .IsRequired()
+                .HasMaxLength(64);
+
+            entity.HasOne(d => d.Cart).WithMany(p => p.CartEvents)
+                .HasForeignKey(d => d.CartId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_CartEvents_Carts");
+        });
+
         modelBuilder.Entity<CartItem>(entity =>
         {
+            entity.HasIndex(e => e.CartId, "IX_CartItems_CartId");
+
+            entity.Property(e => e.DiscountAmount).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.ProductName).HasMaxLength(256);
+            entity.Property(e => e.RowTotal)
+                .HasComputedColumnSql("(CONVERT([decimal](18,2),[UnitPrice]*[Quantity]-[DiscountAmount]))", true)
+                .HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.Sku)
+                .HasMaxLength(64)
+                .HasColumnName("SKU");
+            entity.Property(e => e.TaxCategory).HasMaxLength(64);
             entity.Property(e => e.UnitPrice).HasColumnType("decimal(18, 2)");
 
             entity.HasOne(d => d.Cart).WithMany(p => p.CartItems)
                 .HasForeignKey(d => d.CartId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_CartItems_Carts");
+
+            entity.HasOne(d => d.ParentItem).WithMany(p => p.InverseParentItem)
+                .HasForeignKey(d => d.ParentItemId)
+                .HasConstraintName("FK_CartItems_Parent");
+        });
+
+        modelBuilder.Entity<CartItemOption>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__CartItem__3214EC076DE189C4");
+
+            entity.Property(e => e.Name)
+                .IsRequired()
+                .HasMaxLength(100);
+            entity.Property(e => e.Value)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            entity.HasOne(d => d.CartItem).WithMany(p => p.CartItemOptions)
+                .HasForeignKey(d => d.CartItemId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_CartItemOptions_CartItems");
+        });
+
+        modelBuilder.Entity<CartLock>(entity =>
+        {
+            entity.HasKey(e => e.CartId).HasName("PK__CartLock__51BCD7B75218557E");
+
+            entity.Property(e => e.CartId).ValueGeneratedNever();
+            entity.Property(e => e.LockedAt).HasDefaultValueSql("(sysdatetime())");
+            entity.Property(e => e.LockedBy)
+                .IsRequired()
+                .HasMaxLength(128);
+            entity.Property(e => e.Reason).HasMaxLength(256);
+
+            entity.HasOne(d => d.Cart).WithOne(p => p.CartLock)
+                .HasForeignKey<CartLock>(d => d.CartId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_CartLocks_Carts");
+        });
+
+        modelBuilder.Entity<CartPayment>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__CartPaym__3214EC07F07889A2");
+
+            entity.Property(e => e.AmountAuthorized).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.CurrencyCode)
+                .IsRequired()
+                .HasMaxLength(3);
+            entity.Property(e => e.Method)
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(e => e.Status)
+                .IsRequired()
+                .HasMaxLength(30);
+            entity.Property(e => e.UpdatedDate).HasDefaultValueSql("(sysdatetime())");
+
+            entity.HasOne(d => d.Cart).WithMany(p => p.CartPayments)
+                .HasForeignKey(d => d.CartId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_CartPayments_Carts");
+        });
+
+        modelBuilder.Entity<CartShipment>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__CartShip__3214EC0750C28FA3");
+
+            entity.Property(e => e.Carrier)
+                .IsRequired()
+                .HasMaxLength(100);
+            entity.Property(e => e.Cost).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.CreatedDate).HasDefaultValueSql("(sysdatetime())");
+            entity.Property(e => e.MethodCode)
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(e => e.MethodName)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.HasOne(d => d.Cart).WithMany(p => p.CartShipments)
+                .HasForeignKey(d => d.CartId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_CartShipments_Carts");
+        });
+
+        modelBuilder.Entity<CartTaxis>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__CartTaxe__3214EC076E34FB5C");
+
+            entity.Property(e => e.Amount).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.CreatedDate).HasDefaultValueSql("(sysdatetime())");
+            entity.Property(e => e.Jurisdiction).HasMaxLength(100);
+            entity.Property(e => e.Rate).HasColumnType("decimal(9, 6)");
+
+            entity.HasOne(d => d.Cart).WithMany(p => p.CartTaxes)
+                .HasForeignKey(d => d.CartId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_CartTaxes_Carts");
+        });
+
+        modelBuilder.Entity<CartTotal>(entity =>
+        {
+            entity.HasKey(e => e.CartId).HasName("PK__CartTota__51BCD7B755A6E5B8");
+
+            entity.Property(e => e.CartId).ValueGeneratedNever();
+            entity.Property(e => e.DiscountTotal).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.GrandTotal).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.LastCalculated).HasDefaultValueSql("(sysdatetime())");
+            entity.Property(e => e.ShippingTotal).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.Subtotal).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.TaxTotal).HasColumnType("decimal(18, 2)");
+
+            entity.HasOne(d => d.Cart).WithOne(p => p.CartTotal)
+                .HasForeignKey<CartTotal>(d => d.CartId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_CartTotals_Carts");
+        });
+
+        modelBuilder.Entity<SavedForLaterItem>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__SavedFor__3214EC074D57AC32");
+
+            entity.Property(e => e.CreatedDate).HasDefaultValueSql("(sysdatetime())");
+            entity.Property(e => e.ProductName).HasMaxLength(256);
+            entity.Property(e => e.Sku)
+                .HasMaxLength(64)
+                .HasColumnName("SKU");
+            entity.Property(e => e.UnitPrice).HasColumnType("decimal(18, 2)");
+
+            entity.HasOne(d => d.Cart).WithMany(p => p.SavedForLaterItems)
+                .HasForeignKey(d => d.CartId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_SFL_Carts");
         });
 
         OnModelCreatingPartial(modelBuilder);

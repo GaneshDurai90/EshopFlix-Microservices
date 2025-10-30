@@ -1,7 +1,18 @@
-﻿
-@{
-    ViewData["Title"] = "UnAuthorize";
+﻿@{
+    ViewData["Title"] = "Unauthorized";
 }
 
-<h1>UnAuthorize</h1>
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="alert alert-danger shadow-sm" role="alert">
+            <h5 class="alert-heading">Access denied</h5>
+            <p>You don't have permission to view this page.</p>
+            <hr />
+            <div class="d-flex gap-2">
+                <a asp-controller="Account" asp-action="Login" class="btn btn-primary">Login</a>
+                <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary">Go home</a>
+            </div>
+        </div>
+    </div>
+</div>
 

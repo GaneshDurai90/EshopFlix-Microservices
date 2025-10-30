@@ -1,0 +1,23 @@
+@model IEnumerable<eShopFlix.Web.Models.SavedForLaterItemModel>
+@{
+    var cartId = (long)ViewBag.CartId;
+}
+@if (Model != null && Model.Any())
+{
+    <ul class="list-group">
+        @foreach (var s in Model)
+        {
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                    <div><strong>@s.ProductName</strong> (SKU: @s.Sku)</div>
+                    <div>Qty: @s.Quantity | Price: ?@s.UnitPrice.ToString("##.#")</div>
+                </div>
+                <button class="btn btn-sm btn-link" onclick="moveSavedToCart(@s.Id)">Move to cart</button>
+            </li>
+        }
+    </ul>
+}
+else
+{
+    <span class="text-muted">No saved items.</span>
+}

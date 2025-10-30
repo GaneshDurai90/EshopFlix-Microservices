@@ -8,16 +8,16 @@ namespace eShopFlix.Web.Controllers
     public class HomeController : Controller
     {
         private readonly ILogger<HomeController> _logger;
-        CatalogServiceClient _catalogServiceClient;
-        public HomeController(ILogger<HomeController> logger,CatalogServiceClient catalogServiceClient)
+        private readonly CatalogServiceClient _catalogServiceClient;
+        public HomeController(ILogger<HomeController> logger, CatalogServiceClient catalogServiceClient)
         {
             _logger = logger;
             _catalogServiceClient = catalogServiceClient;
         }
 
-        public IActionResult Index()
+        public async Task<IActionResult> Index()
         {
-            var products = _catalogServiceClient.GetProducts().Result;
+            var products = await _catalogServiceClient.GetProducts();
             return View(products);
         }
 

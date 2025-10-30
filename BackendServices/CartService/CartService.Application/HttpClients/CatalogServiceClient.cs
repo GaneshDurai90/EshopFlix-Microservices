@@ -1,10 +1,8 @@
 ﻿using CartService.Application.DTOs;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+using CartService.Application.Exceptions;
+using System.Net;
 using System.Text;
 using System.Text.Json;
-using System.Threading.Tasks;
 
 namespace CartService.Application.HttpClients
 {
@@ -15,23 +13,26 @@ namespace CartService.Application.HttpClients
         {
             _client = client;
         }
-        public async Task<IEnumerable<ProductDTO>> GetByIdsAsync(int[] productIds)
-        {
-            StringContent content = new StringContent(JsonSerializer.Serialize(productIds), Encoding.UTF8, "application/json");
 
-            var response = await _client.PostAsync("catalog/getbyids", content);
-            if (response.IsSuccessStatusCode)
+        public async Task<IEnumerable<ProductDTO>> GetByIdsAsync(int[] productIds, CancellationToken cancellationToken = default)
+        {
+            using var content = new StringContent(JsonSerializer.Serialize(productIds), Encoding.UTF8, "application/json");
+            using var response = await _client.PostAsync("catalog/getbyids", content, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
             {
-                string data = await response.Content.ReadAsStringAsync();
-                if (data != null)
-                {
-                    return JsonSerializer.Deserialize<IEnumerable<ProductDTO>>(data, new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    });
-                }
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                throw AppException.External("CatalogService", response.StatusCode, body);
             }
-            return null;
+
+            var data = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (string.IsNullOrWhiteSpace(data))
+                return Enumerable.Empty<ProductDTO>();
+
+            return JsonSerializer.Deserialize<IEnumerable<ProductDTO>>(data, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            }) ?? Enumerable.Empty<ProductDTO>();
         }
     }
 }

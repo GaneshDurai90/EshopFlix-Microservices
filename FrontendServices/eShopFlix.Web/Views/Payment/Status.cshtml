@@ -1,7 +1,24 @@
-﻿
-@{
-    ViewData["Title"] = "Status";
+﻿@{
+    ViewData["Title"] = "Payment Status";
 }
 
-<h1>@ViewBag.Message</h1>
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="alert alert-warning shadow-sm" role="alert">
+            <div class="d-flex align-items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-exclamation-triangle me-2" viewBox="0 0 16 16">
+                    <path d="M7.938 2.016a1.13 1.13 0 0 1 2.02 0l6.857 11.667c.457.778-.091 1.767-1.01 1.767H2.09c-.918 0-1.466-.99-1.01-1.767L7.938 2.016zM8 4.002a.905.905 0 0 0-.9.9l.35 4.6a.55.55 0 0 0 1.1 0l.35-4.6a.905.905 0 0 0-.9-.9zm.002 7.918a1.078 1.078 0 1 0 0 2.156 1.078 1.078 0 0 0 0-2.156z"/>
+                </svg>
+                <div>
+                    <h5 class="mb-1">We couldn't confirm your payment</h5>
+                    <div>@ViewBag.Message</div>
+                </div>
+            </div>
+            <div class="mt-3 d-flex gap-2">
+                <a asp-controller="Cart" asp-action="Index" class="btn btn-outline-secondary">Back to cart</a>
+                <a asp-controller="Payment" asp-action="Index" class="btn btn-primary">Try again</a>
+            </div>
+        </div>
+    </div>
+</div>
 

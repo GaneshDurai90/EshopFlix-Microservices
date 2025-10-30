@@ -25,7 +25,7 @@ namespace CartService.Infrastructure
 
             //Repositories
             services.AddScoped<ICartRepository, CartRepository>();
-
+            services.AddScoped<ICartServiceDbContextProcedures, CartServiceDbContextProcedures>();
             //Services
             services.AddScoped<ICartAppService, CartAppService>();
 

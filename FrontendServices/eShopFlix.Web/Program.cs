@@ -5,39 +5,34 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
-builder.Services.AddHttpClient("HttpClient" ,client =>
-{
-    client.BaseAddress = new Uri(builder.Configuration["ApigatewayAddress"]);
-});
-builder.Services.AddScoped<CatalogServiceClient>(client =>
-{
-    var httpClientFactory = builder.Services.BuildServiceProvider().GetRequiredService<IHttpClientFactory>();
 
-    var httpClient = httpClientFactory.CreateClient("HttpClient");
-    return new CatalogServiceClient(httpClient);
-});
-builder.Services.AddScoped<AuthServiceClient>(client =>
-{
-    var httpClientFactory = builder.Services.BuildServiceProvider().GetRequiredService<IHttpClientFactory>();
+// Central API Gateway base address
+var apiGatewayBase = builder.Configuration["ApigatewayAddress"] ?? "https://localhost:7269";
 
-    var httpClient = httpClientFactory.CreateClient("HttpClient");
-    return new AuthServiceClient(httpClient);
+// Add Catalog image base URL mapping (to fully-qualify relative ImageUrl from backend)
+// Expecting Catalog:ImageBaseUrl in appsettings to point to CatalogService public base (https://localhost:7159)
+
+// Register typed HttpClients for backend services (through the API Gateway)
+builder.Services.AddHttpClient<CatalogServiceClient>(client =>
+{
+    client.BaseAddress = new Uri(apiGatewayBase);
 });
 
-builder.Services.AddScoped<CartServiceClient>(client =>
+builder.Services.AddHttpClient<AuthServiceClient>(client =>
 {
-    var httpClientFactory = builder.Services.BuildServiceProvider().GetRequiredService<IHttpClientFactory>();
-
-    var httpClient = httpClientFactory.CreateClient("HttpClient");
-    return new CartServiceClient(httpClient);
+    client.BaseAddress = new Uri(apiGatewayBase);
 });
-builder.Services.AddScoped<PaymentServiceClient>(client =>
+
+builder.Services.AddHttpClient<CartServiceClient>(client =>
 {
-    var httpClientFactory = builder.Services.BuildServiceProvider().GetRequiredService<IHttpClientFactory>();
-
-    var httpClient = httpClientFactory.CreateClient("HttpClient");
-    return new PaymentServiceClient(httpClient);
+    client.BaseAddress = new Uri(apiGatewayBase);
 });
+
+builder.Services.AddHttpClient<PaymentServiceClient>(client =>
+{
+    client.BaseAddress = new Uri(apiGatewayBase);
+});
+
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {

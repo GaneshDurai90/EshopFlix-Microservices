@@ -1,4 +1,5 @@
 ﻿@model CartModel
+@using eShopFlix.Web.Models
 @{
     ViewData["Title"] = "Cart";
 }
@@ -25,15 +26,18 @@
                                 <div class="d-flex justify-content-between">
                                     <div>
                                         <h5>@item.Name</h5>
-                                        <p class="mb-2 text-muted small">Size: Regular</p>
+                                        <p class="mb-2 text-muted small">SKU: @item.Id</p>
                                         <p class="mb-2 text-muted small">
                                             Unit Price: ₹@item.UnitPrice.ToString("##.#")
                                             <span class="pl-1">
-                                                <a href="javascript:void(0)" onclick="deleteItem('@item.Id','@item.CartId')" title="Remove" class="pt-0 text-danger">
+                                                <a href="javascript:void(0)" onclick="deleteItem('@item.ItemId','@item.CartId')" title="Remove" class="pt-0 text-danger">
                                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-trash" viewBox="0 0 16 16">
                                                         <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5Zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6Z" />
                                                         <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1ZM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118ZM2.5 3h11V2h-11v1Z" />
                                                     </svg>
+                                                </a>
+                                                <a href="javascript:void(0)" onclick="saveForLater(@item.CartId, @item.ItemId)" title="Save for later" class="pt-0 ms-2">
+                                                    save for later
                                                 </a>
                                             </span>
                                         </p>
@@ -42,16 +46,16 @@
                                         <div class="def-number-input number-input safari_only mb-0 w-100">
                                             <div class="input-group mb-3">
                                                 <div class="input-group-prepend">
-                                                    <button onclick="updateQuantity('@item.Id','@item.Quantity',-1,'@item.CartId')" class="btn btn-outline-secondary" type="button">-</button>
+                                                    <button onclick="updateQuantity('@item.ItemId','@item.Quantity',-1,'@item.CartId')" class="btn btn-outline-secondary" type="button">-</button>
                                                 </div>
                                                 <input class="form-control sm-control" size="2" min="0" name="quantity" value="@item.Quantity" readonly />
                                                 <div class="input-group-append">
-                                                    <button onclick="updateQuantity('@item.Id','@item.Quantity',1,'@item.CartId')" class="btn btn-outline-secondary" type="button">+</button>
+                                                    <button onclick="updateQuantity('@item.ItemId','@item.Quantity',1,'@item.CartId')" class="btn btn-outline-secondary" type="button">+</button>
                                                 </div>
                                             </div>
                                         </div>
                                         <span id="spanTotal" class="form-text text-muted text-center">
-                                            Total : ₹@((item.UnitPrice * @item.Quantity).ToString("##.#"))
+                                            Line Total : ₹@((item.UnitPrice * @item.Quantity).ToString("##.#"))
                                         </span>
                                     </div>
                                 </div>
@@ -62,31 +66,71 @@
                             <hr class="mb-4">
                         }
                     }
+                    <div class="d-flex justify-content-end mb-3">
+                        <button class="btn btn-outline-danger" onclick="clearCart(@Model.Id)">Clear Cart</button>
+                    </div>
                 </div>
             </div>
         </div>
         <div class="col-sm-3">
             <div class="card mb-3">
                 <div class="col-sm-12">
+                    <h5 class="mt-3 ps-2">Coupons</h5>
+                </div>
+                <hr />
+                <div class="card-body pt-0">
+                    <div id="couponsContainer">
+                        @{
+                            var coupons = ViewBag.Coupons as IEnumerable<CouponModel> ?? new List<CouponModel>();
+                            ViewBag.CartId = Model.Id;
+                        }
+                        @Html.Partial("Partials/_CouponsPartial", coupons)
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="col-sm-12">
+                    <h5 class="mt-3 ps-2">Shipping Options</h5>
+                </div>
+                <hr />
+                <div class="card-body pt-0">
+                    <div id="shippingContainer">
+                        @{
+                            var shipments = ViewBag.Shipments as IEnumerable<ShipmentModel> ?? new List<ShipmentModel>();
+                            ViewBag.CartId = Model.Id;
+                        }
+                        @Html.Partial("Partials/_ShippingPartial", shipments)
+                    </div>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="col-sm-12">
                     <h5 class="mt-3 ps-2">Order Summary</h5>
                 </div>
                 <hr />
                 <div class="card-body pt-0">
-                    <ul class="list-group list-group-flush">
-                        <li class="list-group-item d-flex justify-content-between align-items-center border-0 px-0">
-                            Amount
-                            <span>₹@Model.Total.ToString("##.#")</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center border-0 px-0">
-                            Tax (18%)
-                            <span>+₹@Model.Tax.ToString("##.#")</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center  px-0 mb-3">
-                            <strong>Total Amount</strong>
-                            <span><strong>₹@Model.GrandTotal.ToString("##.#")</strong></span>
-                        </li>
-                    </ul>
-                    <a asp-action="Checkout" asp-controller="Cart" class="btn btn-success btn-block">Checkout</a>
+                    <div id="orderSummaryContainer">
+                        @Html.Partial("Partials/_OrderSummaryPartial", (CartTotalsModel)ViewBag.Totals)
+                    </div>
+                    <a asp-action="Checkout" asp-controller="Cart" class="btn btn-success btn-block mt-3">Checkout</a>
+                </div>
+            </div>
+
+            <div class="card mb-3">
+                <div class="col-sm-12">
+                    <h5 class="mt-3 ps-2">Saved for later</h5>
+                </div>
+                <hr />
+                <div class="card-body pt-0">
+                    <div id="savedContainer">
+                        @{
+                            var saved = ViewBag.Saved as IEnumerable<SavedForLaterItemModel> ?? new List<SavedForLaterItemModel>();
+                            ViewBag.CartId = Model.Id;
+                        }
+                        @Html.Partial("Partials/_SavedForLaterPartial", saved)
+                    </div>
                 </div>
             </div>
         </div>

@@ -11,6 +11,7 @@ namespace CartService.Application.Mappers
         {
             CreateMap<Cart,CartDTO>().ReverseMap();
             CreateMap<CartItem, CartItemDTO>().ReverseMap();
+           // CreateMap<CartSnapshotDto, CartSnapshotDTO>();
 
         }
     }
