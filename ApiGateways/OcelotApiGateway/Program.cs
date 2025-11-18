@@ -1,9 +1,16 @@
 using Microsoft.IdentityModel.Tokens;
 using Ocelot.DependencyInjection;
 using Ocelot.Middleware;
+using Ocelot.Provider.Polly;
 using System.Text;
+using Serilog;
+using OcelotApiGateway.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Serilog for gateway
+SerilogExtensions.ConfigureSerilog(builder.Configuration);
+builder.Host.UseSerilog();
 
 if (builder.Environment.IsDevelopment())
 {
@@ -13,7 +20,11 @@ else
 {
     builder.Configuration.AddJsonFile("ocelot.json");
 }
-builder.Services.AddOcelot();
+
+builder.Services.AddOcelot().AddPolly();
+
+// Register downstream resilience delegating handler via DI so we can reference it in ocelot config
+builder.Services.AddTransient<OcelotApiGateway.Resilience.DownstreamResilienceHandler>();
 
 var endPointAuthKey = builder.Configuration["Keys:EndpointAuthKey"];
 builder.Services.AddAuthentication().AddJwtBearer(endPointAuthKey, options =>
@@ -32,6 +43,12 @@ builder.Services.AddAuthentication().AddJwtBearer(endPointAuthKey, options =>
 
 var app = builder.Build();
 
-app.MapGet("/", () => "Hello World!");
-app.UseOcelot().Wait();
+app.UseSerilogRequestLogging(opts =>
+{
+    opts.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
+});
+
+app.MapGet("/", () => "Gateway is running");
+
+await app.UseOcelot();
 app.Run();
