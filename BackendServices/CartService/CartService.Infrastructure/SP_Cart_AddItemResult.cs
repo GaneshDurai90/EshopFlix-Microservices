@@ -8,6 +8,6 @@ namespace CartService.Infrastructure
 {
     public partial class SP_Cart_AddItemResult
     {
-        public int CartItemId { get; set; }
+        public int? CartItemId { get; set; }
     }
 }

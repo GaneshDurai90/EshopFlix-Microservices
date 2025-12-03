@@ -11,7 +11,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\..\eShopFlix.Shared\Contracts\Contracts.csproj" />
     <ProjectReference Include="..\StockService.Application\StockService.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Messaging\Consumers\" />
   </ItemGroup>
 
 </Project>

@@ -75,6 +75,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StockService.Infrastructure
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StockService.Application", "BackendServices\StockService\StockService.Application\StockService.Application.csproj", "{496743BA-727B-4342-85A6-F2E7E3B33465}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "eShopflix.Shared", "eShopflix.Shared", "{20E1BB66-D374-48E6-8807-00F7960C5448}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Contracts", "eShopFlix.Shared\Contracts\Contracts.csproj", "{31CF94E2-415A-4848-952B-BC4B50621EF4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -189,6 +193,10 @@ Global
 		{496743BA-727B-4342-85A6-F2E7E3B33465}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{496743BA-727B-4342-85A6-F2E7E3B33465}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{496743BA-727B-4342-85A6-F2E7E3B33465}.Release|Any CPU.Build.0 = Release|Any CPU
+		{31CF94E2-415A-4848-952B-BC4B50621EF4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{31CF94E2-415A-4848-952B-BC4B50621EF4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{31CF94E2-415A-4848-952B-BC4B50621EF4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{31CF94E2-415A-4848-952B-BC4B50621EF4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -227,6 +235,7 @@ Global
 		{078FF100-34EA-443F-B2D8-A226A769306E} = {DE373AF0-A224-4C0F-91A0-E8264F3D9B3F}
 		{FA9495E6-2A1E-4466-AD1E-B63BC6D7258E} = {DE373AF0-A224-4C0F-91A0-E8264F3D9B3F}
 		{496743BA-727B-4342-85A6-F2E7E3B33465} = {DE373AF0-A224-4C0F-91A0-E8264F3D9B3F}
+		{31CF94E2-415A-4848-952B-BC4B50621EF4} = {20E1BB66-D374-48E6-8807-00F7960C5448}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {17A68C73-C42C-43A6-B001-8F550A39D551}

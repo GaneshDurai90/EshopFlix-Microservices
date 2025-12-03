@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using CartService.Domain.Entities;
+using CartService.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
 namespace CartService.Infrastructure.Persistence;
@@ -35,6 +36,12 @@ public partial class CartServiceDbContext : DbContext
     public virtual DbSet<CartTaxis> CartTaxes { get; set; }
 
     public virtual DbSet<CartTotal> CartTotals { get; set; }
+
+    public virtual DbSet<IdempotentRequest> IdempotentRequests { get; set; }
+
+    public virtual DbSet<InboxMessage> InboxMessages { get; set; }
+
+    public virtual DbSet<OutboxMessage> OutboxMessages { get; set; }
 
     public virtual DbSet<SavedForLaterItem> SavedForLaterItems { get; set; }
 
@@ -252,6 +259,60 @@ public partial class CartServiceDbContext : DbContext
                 .HasForeignKey<CartTotal>(d => d.CartId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_CartTotals_Carts");
+        });
+
+        modelBuilder.Entity<IdempotentRequest>(entity =>
+        {
+            entity.HasNoKey();
+
+            entity.HasIndex(e => new { e.Key, e.UserId }, "UX_IdempotentRequests_Key_User")
+                .IsUnique()
+                .HasFilter("([UserId] IS NOT NULL)");
+
+            entity.Property(e => e.CreatedOn).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Id).ValueGeneratedOnAdd();
+            entity.Property(e => e.Key)
+                .IsRequired()
+                .HasMaxLength(100);
+            entity.Property(e => e.RequestHash).HasMaxLength(88);
+        });
+
+        modelBuilder.Entity<InboxMessage>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__InboxMes__3214EC0774A6AA2B");
+
+            entity.HasIndex(e => e.MessageId, "UQ_Inbox_MessageId").IsUnique();
+
+            entity.Property(e => e.Consumer).HasMaxLength(100);
+            entity.Property(e => e.MessageId)
+                .IsRequired()
+                .HasMaxLength(100);
+            entity.Property(e => e.MessageType).HasMaxLength(200);
+            entity.Property(e => e.ReceivedOn).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Status)
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasDefaultValue("Received");
+        });
+
+        modelBuilder.Entity<OutboxMessage>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__OutboxMe__3214EC07C1EC9D0E");
+
+            entity.HasIndex(e => e.MessageId, "IX_Outbox_MessageId").IsUnique();
+
+            entity.HasIndex(e => new { e.Processed, e.OccurredOn }, "IX_Outbox_Processed_OccurredOn");
+
+            entity.Property(e => e.Content).IsRequired();
+            entity.Property(e => e.Destination).HasMaxLength(200);
+            entity.Property(e => e.LockedBy).HasMaxLength(100);
+            entity.Property(e => e.MessageId)
+                .IsRequired()
+                .HasMaxLength(100);
+            entity.Property(e => e.OccurredOn).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Type)
+                .IsRequired()
+                .HasMaxLength(250);
         });
 
         modelBuilder.Entity<SavedForLaterItem>(entity =>

@@ -1,9 +1,11 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using OpenTelemetry.Trace;
+﻿using Microsoft.AspNetCore.Mvc;             
 using Serilog;
 using System.Diagnostics;
 using System.Text.Json;
 using CartService.Application.Exceptions;
+using System.Security.Claims;
+using Polly.Timeout;
+
 
 namespace CartService.API.Middleware
 {
@@ -11,6 +13,8 @@ namespace CartService.API.Middleware
     {
         private readonly RequestDelegate _next;
         private readonly ILogger<ExceptionHandlingMiddleware> _logger;
+        private const string CorrKey = "x-correlation-id";
+
         public ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
         {
             _next = next;
@@ -19,6 +23,11 @@ namespace CartService.API.Middleware
 
         public async Task InvokeAsync(HttpContext context)
         {
+            var correlationId =
+                context.Items[CorrKey] as string ??
+                context.Request.Headers[CorrKey].FirstOrDefault() ??
+                context.TraceIdentifier;
+
             try
             {
                 await _next(context);
@@ -26,58 +35,101 @@ namespace CartService.API.Middleware
             catch (AppException appEx)
             {
                 var traceId = Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
+                var userId = context.User?.Identity?.IsAuthenticated == true
+                    ? context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                    : null;
 
-                // Log severity based on status
-                var level = appEx.StatusCode >= 500 ? Serilog.Events.LogEventLevel.Error :
-                            appEx.StatusCode >= 400 ? Serilog.Events.LogEventLevel.Warning :
-                            Serilog.Events.LogEventLevel.Information;
+                Log.ForContext("TraceId", traceId)
+                   .ForContext("CorrelationId", correlationId)
+                   .ForContext("UserId", userId)
+                   .ForContext("RequestPath", context.Request.Path.Value)
+                   .ForContext("RequestMethod", context.Request.Method)
+                   .ForContext("StatusCode", appEx.StatusCode)
+                   .Write(appEx.StatusCode >= 500 ? Serilog.Events.LogEventLevel.Error
+                                                  : appEx.StatusCode >= 400 ? Serilog.Events.LogEventLevel.Information
+                                                                            : Serilog.Events.LogEventLevel.Warning,
+                          appEx, "Handled application exception {Title}", appEx.Title);
 
-                Log.Write(level, appEx, "Handled application exception {Status} {Title} for {Method} {Path}",
-                    appEx.StatusCode, appEx.Title, context.Request.Method, context.Request.Path);
+                var extensions = new Dictionary<string, object?>(appEx.Extensions ?? new Dictionary<string, object?>());
+                if (appEx.Errors is not null) extensions["errors"] = appEx.Errors;
 
-                if (appEx.Errors is { Count: > 0 })
+                await WriteProblemAsync(context,
+                    statusCode: appEx.StatusCode,
+                    title: appEx.Title,
+                    detail: appEx.Message,
+                    type: appEx.Type ?? "about:blank",
+                    correlationId: correlationId,
+                    traceId: traceId,
+                    extensions: extensions);
+            }
+            catch (OperationCanceledException oce) when (context.RequestAborted.IsCancellationRequested)
+            {
+                var traceId = Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
+
+                Log.ForContext("TraceId", traceId)
+                   .ForContext("CorrelationId", correlationId)
+                   .ForContext("RequestPath", context.Request.Path.Value)
+                   .ForContext("RequestMethod", context.Request.Method)
+                   .Information(oce, "Request cancelled by client/gateway");
+
+                // Avoid writing a body on client-abort; just set status if possible.
+                if (!context.Response.HasStarted)
                 {
-                    var vpd = new ValidationProblemDetails(appEx.Errors)
-                    {
-                        Title = appEx.Title,
-                        Status = appEx.StatusCode,
-                        Type = appEx.Type ?? "about:blank",
-                        Instance = context.TraceIdentifier,
-                        Detail = appEx.Message
-                    };
-                    vpd.Extensions["traceId"] = traceId;
-
-                    if (appEx.Extensions is not null)
-                        foreach (var kv in appEx.Extensions) vpd.Extensions[kv.Key] = kv.Value;
-
-                    await WriteProblemObjectAsync(context, vpd.Status!.Value, vpd);
-                }
-                else
-                {
-                    await WriteProblemAsync(context,
-                        statusCode: appEx.StatusCode,
-                        title: appEx.Title,
-                        detail: appEx.Message,
-                        type: appEx.Type ?? "about:blank",
-                        extensions: appEx.Extensions);
+                    context.Response.StatusCode = 499;
                 }
             }
-            catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+            catch (TimeoutRejectedException tex)
             {
-                // Client disconnected or request cancelled
-                context.Response.StatusCode = 499; // Client Closed Request (nginx convention)
+                var traceId = Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
+
+                Log.ForContext("TraceId", traceId)
+                   .ForContext("CorrelationId", correlationId)
+                   .ForContext("RequestPath", context.Request.Path.Value)
+                   .ForContext("RequestMethod", context.Request.Method)
+                   .Warning(tex, "Request timed out waiting for external dependency");
+
+                var problem = new ProblemDetails
+                {
+                    Type = "https://httpstatuses.com/408",
+                    Title = "Request timeout",
+                    Status = StatusCodes.Status408RequestTimeout,
+                    Detail = "The operation timed out while waiting for an external dependency to respond.",
+                    Instance = context.Request.Path
+                };
+                problem.Extensions["traceId"] = traceId;
+                problem.Extensions["correlationId"] = correlationId;
+
+                await WriteProblemObjectAsync(context, StatusCodes.Status408RequestTimeout, problem);
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Unhandled exception");
+                var traceId = Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
+
+                Log.ForContext("TraceId", traceId)
+                   .ForContext("CorrelationId", correlationId)
+                   .ForContext("RequestPath", context.Request.Path.Value)
+                   .ForContext("RequestMethod", context.Request.Method)
+                   .ForContext("StatusCode", 500)
+                   .Error(ex, "Unhandled exception");
+
                 await WriteProblemAsync(context, StatusCodes.Status500InternalServerError,
                     title: "Unexpected error",
                     detail: "An unexpected error occurred. Try again later.",
-                    type: "urn:problem:cart:unexpected");
+                    type: "urn:problem:cart:unexpected",
+                    correlationId: correlationId,
+                    traceId: traceId);
             }
         }
 
-        private static async Task WriteProblemAsync(HttpContext context, int statusCode, string title, string detail, string type, IDictionary<string, object>? extensions = null)
+        private static async Task WriteProblemAsync(
+            HttpContext context,
+            int statusCode,
+            string title,
+            string detail,
+            string type,
+            string? correlationId = null,
+            string? traceId = null,
+            IDictionary<string, object?>? extensions = null)
         {
             var problem = new ProblemDetails
             {
@@ -85,21 +137,25 @@ namespace CartService.API.Middleware
                 Detail = detail,
                 Status = statusCode,
                 Type = type,
-                Instance = context.TraceIdentifier
+                Instance = context.Request.Path
             };
 
-            if (extensions != null)
+            if (extensions is not null)
             {
-                foreach (var kvp in extensions)
-                    problem.Extensions[kvp.Key] = kvp.Value;
+                foreach (var kvp in extensions) problem.Extensions[kvp.Key] = kvp.Value;
             }
 
-            problem.Extensions["traceId"] = Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
+            problem.Extensions["traceId"] = traceId ?? Activity.Current?.TraceId.ToString() ?? context.TraceIdentifier;
+            if (!string.IsNullOrWhiteSpace(correlationId))
+                problem.Extensions["correlationId"] = correlationId;
+
             await WriteProblemObjectAsync(context, statusCode, problem);
         }
 
         private static async Task WriteProblemObjectAsync(HttpContext context, int status, ProblemDetails problem)
         {
+            if (context.Response.HasStarted) return;
+
             context.Response.ContentType = "application/problem+json";
             context.Response.StatusCode = status;
 
@@ -115,8 +171,6 @@ namespace CartService.API.Middleware
     public static class ExceptionHandlingMiddlewareExtensions
     {
         public static IApplicationBuilder UseExceptionHandlingMiddleware(this IApplicationBuilder builder)
-        {
-            return builder.UseMiddleware<ExceptionHandlingMiddleware>();
-        }
+            => builder.UseMiddleware<ExceptionHandlingMiddleware>();
     }
 }

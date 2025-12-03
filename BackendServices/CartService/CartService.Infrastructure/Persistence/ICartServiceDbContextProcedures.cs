@@ -13,19 +13,19 @@ namespace CartService.Infrastructure.Persistence
 {
     public partial interface ICartServiceDbContextProcedures
     {
-        Task<List<SP_Cart_AddAdjustmentResult>> SP_Cart_AddAdjustmentAsync(long? cartId, int? cartItemId, string type, string description, decimal? amount, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
+        Task<int> SP_Cart_AddAdjustmentAsync(long? cartId, int? cartItemId, string type, string description, decimal? amount, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
         Task<List<SP_Cart_AddItemResult>> SP_Cart_AddItemAsync(long? cartId, int? itemId, string sKU, string productName, decimal? unitPrice, int? quantity, string taxCategory, string productSnapshotJson, string variantJson, bool? isGift, int? parentItemId, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
-        Task<List<SP_Cart_ApplyCouponResult>> SP_Cart_ApplyCouponAsync(long? cartId, string code, string description, decimal? discountAmount, string source, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
-        Task<List<SP_Cart_ClearResult>> SP_Cart_ClearAsync(long? cartId, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
+        Task<int> SP_Cart_ApplyCouponAsync(long? cartId, string code, string description, decimal? discountAmount, string source, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
+        Task<int> SP_Cart_ClearAsync(long? cartId, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
         Task<List<SP_Cart_CreateResult>> SP_Cart_CreateAsync(long? userId, string currencyCode, string channel, Guid? anonymousId, string locale, string countryCode, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
         Task<List<SP_Cart_GetResult>> SP_Cart_GetAsync(long? cartId, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
         Task<int> SP_Cart_LockAsync(long? cartId, string lockedBy, string reason, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
         Task<int> SP_Cart_RecalculateTotalsAsync(long? cartId, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
-        Task<List<SP_Cart_RemoveCouponResult>> SP_Cart_RemoveCouponAsync(long? cartId, string code, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
-        Task<List<SP_Cart_RemoveItemResult>> SP_Cart_RemoveItemAsync(int? cartItemId, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
-        Task<List<SP_Cart_SelectShippingMethodResult>> SP_Cart_SelectShippingMethodAsync(long? cartId, string carrier, string methodCode, string methodName, decimal? cost, int? estimatedDays, string addressSnapshotJson, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
+        Task<int> SP_Cart_RemoveCouponAsync(long? cartId, string code, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
+        Task<int> SP_Cart_RemoveItemAsync(int? cartItemId, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
+        Task<int> SP_Cart_SelectShippingMethodAsync(long? cartId, string carrier, string methodCode, string methodName, decimal? cost, int? estimatedDays, string addressSnapshotJson, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
         Task<int> SP_Cart_SetPaymentAsync(long? cartId, string method, decimal? amountAuthorized, string currencyCode, string status, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
         Task<int> SP_Cart_UnlockAsync(long? cartId, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
-        Task<List<SP_Cart_UpdateItemQuantityResult>> SP_Cart_UpdateItemQuantityAsync(int? cartItemId, int? quantity, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
+        Task<int> SP_Cart_UpdateItemQuantityAsync(int? cartItemId, int? quantity, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default);
     }
 }

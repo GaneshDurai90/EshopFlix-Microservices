@@ -1,5 +1,7 @@
 ﻿using CartService.Application.Exceptions;
 using AutoMapper;
+using CartService.Application.CQRS;
+using CartService.Application.Carts.Commands;
 using CartService.Application.DTOs;
 using CartService.Application.HttpClients;
 using CartService.Application.Repositories;
@@ -11,23 +13,28 @@ namespace CartService.Application.Services.Implementations
 {
     public class CartAppService : ICartAppService
     {
-        readonly ICartRepository _cartRepository;
-        readonly IMapper _mapper;
-        readonly IConfiguration _configuration;
+        private readonly ICartRepository _cartRepository;
+        private readonly IMapper _mapper;
+        private readonly IConfiguration _configuration;
         private readonly CatalogServiceClient _catalogServiceClient;
+        private readonly IDispatcher _dispatcher;
 
-        public CartAppService(ICartRepository cartRepository, IMapper mapper, IConfiguration configuration, CatalogServiceClient catalogServiceClient)
+        public CartAppService(
+            ICartRepository cartRepository,
+            IMapper mapper,
+            IConfiguration configuration,
+            CatalogServiceClient catalogServiceClient,
+            IDispatcher dispatcher)
         {
             _cartRepository = cartRepository;
             _mapper = mapper;
             _configuration = configuration;
             _catalogServiceClient = catalogServiceClient;
+            _dispatcher = dispatcher;
         }
 
-        /// <summary>
-        /// Enrich CartDTO items with Name/Image from Catalog and compute simple totals
-        /// (used only when we don't have CartTotals available).
-        /// </summary>
+        // ---------- Private helpers (unchanged) ----------
+
         private async Task<CartDTO> PopulateCartDetailsAsync(Cart cart, CancellationToken ct)
         {
             var cartModel = _mapper.Map<CartDTO>(cart);
@@ -58,9 +65,6 @@ namespace CartService.Application.Services.Implementations
             return cartModel;
         }
 
-        /// <summary>
-        /// Prefer this for read endpoints: uses snapshot (multi-result) + enrich.
-        /// </summary>
         private async Task<CartDTO> BuildDtoFromSnapshotAsync(long cartId, CancellationToken ct)
         {
             var snap = await _cartRepository.GetSnapshotAsync(cartId, ct);
@@ -112,11 +116,8 @@ namespace CartService.Application.Services.Implementations
             return dto;
         }
 
-        // ---------- Commands ----------
+        // ---------- Commands via Dispatcher ----------
 
-        /// <summary>
-        /// Add an item (creates cart if needed), then returns cart DTO (fresh read).
-        /// </summary>
         public async Task<CartDTO> AddItem(long userId, CartItem item)
         {
             var errors = new Dictionary<string, string[]>();
@@ -124,50 +125,60 @@ namespace CartService.Application.Services.Implementations
             if (item.UnitPrice < 0) errors[nameof(item.UnitPrice)] = new[] { "UnitPrice cannot be negative." };
             if (errors.Count > 0) throw AppException.Validation(errors);
 
-            var cart = await _cartRepository.AddItem(userId, new CartItem
-            {
-                CartId = item.CartId,
-                ItemId = item.ItemId,
-                UnitPrice = item.UnitPrice,
-                Quantity = item.Quantity,
-                TaxCategory = item.TaxCategory,
-                Sku = item.Sku,
-                ProductName = item.ProductName,
-                ProductSnapshotJson = item.ProductSnapshotJson,
-                VariantJson = item.VariantJson,
-                IsGift = item.IsGift,
-                ParentItemId = item.ParentItemId
-            });
-
-            return await BuildDtoFromSnapshotAsync(cart.Id, CancellationToken.None);
+            return await _dispatcher.Send(new AddItemCommand(userId, item));
         }
 
-        public async Task<int> DeleteItem(int cartId, int itemId)
-        {
-            var affected = await _cartRepository.DeleteItem(cartId, itemId);
-            if (affected == 0)
-                throw AppException.NotFound("cart.item", $"Item {itemId} not found in cart {cartId}");
-            return affected;
-        }
+        public Task<int> DeleteItem(int cartId, int itemId)
+            => _dispatcher.Send(new DeleteItemCommand(cartId, itemId));
 
-        public async Task<int> UpdateQuantity(int cartId, int itemId, int quantity)
-        {
-            if (quantity == 0)
-                throw AppException.Business("cart.quantity.nochange", "Quantity change cannot be zero.");
+        public Task<bool> MakeInActive(int cartId)
+            => _dispatcher.Send(new MakeInActiveCommand(cartId));
 
-            var affected = await _cartRepository.UpdateQuantity(cartId, itemId, quantity);
-            if (affected == 0)
-                throw AppException.NotFound("cart.item", $"Item {itemId} not found in cart {cartId}");
-            return affected;
-        }
+        public Task<int> UpdateQuantity(int cartId, int itemId, int quantity)
+            => _dispatcher.Send(new UpdateQuantityCommand(cartId, itemId, quantity));
 
-        public async Task<bool> MakeInActive(int cartId)
-        {
-            return await _cartRepository.MakeInActive(cartId);
-        }
+        // Item options keep direct repository for now (not part of current migration list)
+        public Task<int> AddItemOptionAsync(int cartItemId, string name, string value, CancellationToken ct = default)
+            => _cartRepository.AddItemOptionAsync(cartItemId, name, value, ct);
 
-        // ---------- Queries ----------
+        public Task<int> RemoveItemOptionAsync(int cartItemOptionId, CancellationToken ct = default)
+            => _cartRepository.RemoveItemOptionAsync(cartItemOptionId, ct);
 
+        // Coupons
+        public async Task ApplyCouponAsync(long cartId, string code, decimal amount, string? description = null, CancellationToken ct = default)
+            => await _dispatcher.Send(new ApplyCouponCommand(cartId, code, amount, description), ct);
+
+        public async Task RemoveCouponAsync(long cartId, string code, CancellationToken ct = default)
+            => await _dispatcher.Send(new RemoveCouponCommand(cartId, code), ct);
+
+        // Adjustments keep direct repository for now (not part of current migration list)
+        public Task<int> AddAdjustmentAsync(long cartId, int? cartItemId, string type, string description, decimal amount, CancellationToken ct = default)
+            => _cartRepository.AddAdjustmentAsync(cartId, cartItemId, type, description, amount, ct);
+
+        // Shipping
+        public async Task SelectShippingAsync(long cartId, string carrier, string methodCode, string methodName,
+                                              decimal cost, int? estimatedDays, string? addressSnapshotJson, CancellationToken ct = default)
+            => await _dispatcher.Send(new SelectShippingCommand(cartId, carrier, methodCode, methodName, cost, estimatedDays, addressSnapshotJson), ct);
+
+        // Taxes & Totals
+        public async Task RecalculateTotalsAsync(long cartId, CancellationToken ct = default)
+            => await _dispatcher.Send(new RecalculateTotalsCommand(cartId), ct);
+
+        public Task<CartTotal?> GetTotalsAsync(long cartId, CancellationToken ct = default)
+            => _cartRepository.GetTotalsAsync(cartId, ct);
+
+        // Payments
+        public async Task SetPaymentAsync(long cartId, string method, decimal amountAuthorized, string currencyCode, string status, CancellationToken ct = default)
+            => await _dispatcher.Send(new SetPaymentCommand(cartId, method, amountAuthorized, currencyCode, status), ct);
+
+        // Clear cart
+        public async Task ClearAsync(long cartId, CancellationToken ct = default)
+            => await _dispatcher.Send(new ClearCartCommand(cartId), ct);
+
+        public Task<CartSnapshotDto> GetSnapshotAsync(long cartId, CancellationToken ct)
+            => _cartRepository.GetSnapshotAsync(cartId, ct);
+
+        // Reads (keep as is)
         public async Task<CartDTO> GetCart(int cartId)
         {
             var dto = await BuildDtoFromSnapshotAsync(cartId, CancellationToken.None);
@@ -176,10 +187,8 @@ namespace CartService.Application.Services.Implementations
             return dto;
         }
 
-        public async Task<int> GetCartItemCount(long userId)
-        {
-            return userId > 0 ? await _cartRepository.GetCartItemCount(userId) : 0;
-        }
+        public Task<int> GetCartItemCount(long userId)
+            => userId > 0 ? _cartRepository.GetCartItemCount(userId) : Task.FromResult(0);
 
         public async Task<IEnumerable<CartItemDTO>> GetCartItems(long cartId)
         {
@@ -195,67 +204,32 @@ namespace CartService.Application.Services.Implementations
             return await BuildDtoFromSnapshotAsync(cart.Id, CancellationToken.None);
         }
 
-        // ---------- New Business APIs (Coupons, Options, Shipping, Payments, Totals, Clear) ----------
-
-        public Task ApplyCouponAsync(long cartId, string code, decimal amount, string description = null, CancellationToken ct = default)
-            => _cartRepository.ApplyCouponAsync(cartId, code, amount, description, ct);
-
-        public Task RemoveCouponAsync(long cartId, string code, CancellationToken ct = default)
-            => _cartRepository.RemoveCouponAsync(cartId, code, ct);
-
-        public Task<int> AddItemOptionAsync(int cartItemId, string name, string value, CancellationToken ct = default)
-            => _cartRepository.AddItemOptionAsync(cartItemId, name, value, ct);
-
-        public Task<int> RemoveItemOptionAsync(int cartItemOptionId, CancellationToken ct = default)
-            => _cartRepository.RemoveItemOptionAsync(cartItemOptionId, ct);
-
-        public Task<int> AddAdjustmentAsync(long cartId, int? cartItemId, string type, string description, decimal amount, CancellationToken ct = default)
-            => _cartRepository.AddAdjustmentAsync(cartId, cartItemId, type, description, amount, ct);
-
-        public Task SelectShippingAsync(long cartId, string carrier, string methodCode, string methodName,
-                                        decimal cost, int? estimatedDays, string addressSnapshotJson, CancellationToken ct = default)
-            => _cartRepository.SelectShippingAsync(cartId, carrier, methodCode, methodName, cost, estimatedDays, addressSnapshotJson, ct);
-
-        public Task RecalculateTotalsAsync(long cartId, CancellationToken ct = default)
-            => _cartRepository.RecalculateTotalsAsync(cartId, ct);
-
-        public Task<CartTotal?> GetTotalsAsync(long cartId, CancellationToken ct = default)
-            => _cartRepository.GetTotalsAsync(cartId, ct);
-
-        public Task SetPaymentAsync(long cartId, string method, decimal amountAuthorized, string currencyCode, string status, CancellationToken ct = default)
-            => _cartRepository.SetPaymentAsync(cartId, method, amountAuthorized, currencyCode, status, ct);
-
-        public Task ClearAsync(long cartId, CancellationToken ct = default)
-            => _cartRepository.ClearAsync(cartId, ct);
-
-        public Task<CartSnapshotDto> GetSnapshotAsync(long cartId, CancellationToken ct)
-            => _cartRepository.GetSnapshotAsync(cartId, ct);
-
-        public Task<IReadOnlyList<CartItemOption>> GetItemOptionsAsync(int cartItemId, CancellationToken ct)
+        public Task<IReadOnlyList<CartItemOption>> GetItemOptionsAsync(int cartItemId, CancellationToken ct = default)
             => _cartRepository.GetItemOptionsAsync(cartItemId, ct);
 
-        public Task<IReadOnlyList<CartCoupon>> GetCouponsAsync(long cartId, CancellationToken ct)
+        public Task<IReadOnlyList<CartCoupon>> GetCouponsAsync(long cartId, CancellationToken ct = default)
             => _cartRepository.GetCouponsAsync(cartId, ct);
 
-        public Task<IReadOnlyList<CartAdjustment>> GetAdjustmentsAsync(long cartId, CancellationToken ct)
+        public Task<IReadOnlyList<CartAdjustment>> GetAdjustmentsAsync(long cartId, CancellationToken ct = default)
             => _cartRepository.GetAdjustmentsAsync(cartId, ct);
 
-        public Task<IReadOnlyList<CartShipment>> GetShipmentsAsync(long cartId, CancellationToken ct)
+        public Task<IReadOnlyList<CartShipment>> GetShipmentsAsync(long cartId, CancellationToken ct = default)
             => _cartRepository.GetShipmentsAsync(cartId, ct);
 
-        public Task<IReadOnlyList<CartTaxis>> GetTaxesAsync(long cartId, CancellationToken ct)
+        public Task<IReadOnlyList<CartTaxis>> GetTaxesAsync(long cartId, CancellationToken ct = default)
             => _cartRepository.GetTaxesAsync(cartId, ct);
 
-        public Task<IReadOnlyList<CartPayment>> GetPaymentsAsync(long cartId, CancellationToken ct)
+        public Task<IReadOnlyList<CartPayment>> GetPaymentsAsync(long cartId, CancellationToken ct = default)
             => _cartRepository.GetPaymentsAsync(cartId, ct);
 
-        public Task<IReadOnlyList<SavedForLaterItem>> GetSavedForLaterAsync(long cartId, CancellationToken ct = default)
-            => _cartRepository.GetSavedForLaterAsync(cartId, ct);
+        // Save for later
+        public async Task<IReadOnlyList<SavedForLaterItem>> GetSavedForLaterAsync(long cartId, CancellationToken ct = default)
+            => await _cartRepository.GetSavedForLaterAsync(cartId, ct);
 
-        public Task SaveForLaterAsync(long cartId, int itemId, CancellationToken ct = default)
-            => _cartRepository.SaveForLaterAsync(cartId, itemId, ct);
+        public async Task SaveForLaterAsync(long cartId, int itemId, CancellationToken ct = default)
+            => await _dispatcher.Send(new SaveForLaterCommand(cartId, itemId), ct);
 
-        public Task MoveSavedToCartAsync(int savedItemId, CancellationToken ct = default)
-            => _cartRepository.MoveSavedToCartAsync(savedItemId, ct);
+        public async Task MoveSavedToCartAsync(int savedItemId, CancellationToken ct = default)
+            => await _dispatcher.Send(new MoveSavedToCartCommand(savedItemId), ct);
     }
 }

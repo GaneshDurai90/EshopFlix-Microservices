@@ -60,6 +60,18 @@
          "ObjectType": 0
       },
       {
+         "Name": "[dbo].[IdempotentRequests]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[InboxMessages]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[OutboxMessages]",
+         "ObjectType": 0
+      },
+      {
          "Name": "[dbo].[SavedForLaterItems]",
          "ObjectType": 0
       },

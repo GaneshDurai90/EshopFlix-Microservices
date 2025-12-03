@@ -7,62 +7,73 @@ namespace eShopFlix.Web.HttpClients
     public class CartServiceClient
     {
         private readonly HttpClient _client;
+        private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
+
         public CartServiceClient(HttpClient client)
         {
             _client = client;
         }
 
+        // Header helpers
+        private static void AddCommonHeaders(HttpRequestMessage req, string? idempotencyPayload = null)
+        {
+            // Correlation
+            req.Headers.TryAddWithoutValidation("x-correlation-id", Guid.NewGuid().ToString("N"));
+
+            // Idempotency only for write operations
+            if (idempotencyPayload != null)
+            {
+                var key = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                    Encoding.UTF8.GetBytes(idempotencyPayload)));
+                req.Headers.TryAddWithoutValidation("x-idempotency-key", key);
+            }
+        }
+
         public async Task<CartModel?> GetUserCartAsync(long UserId)
         {
             using var response = await _client.GetAsync($"cart/getusercart/{UserId}");
-            if (response.IsSuccessStatusCode)
-            {
-                string responseContent = await response.Content.ReadAsStringAsync();
-                if (!string.IsNullOrWhiteSpace(responseContent))
-                {
-                    return JsonSerializer.Deserialize<CartModel>(responseContent, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                }
-            }
-            return null;
-        }
-        public async Task<CartModel?> GetCartAsync(long CartId)
-        {
-            return await _client.GetFromJsonAsync<CartModel>($"cart/getcart/{CartId}");
+            if (!response.IsSuccessStatusCode) return null;
+            var content = await response.Content.ReadAsStringAsync();
+            return string.IsNullOrWhiteSpace(content) ? null : JsonSerializer.Deserialize<CartModel>(content, JsonOpts);
         }
 
-        public async Task<bool> MakeCartInActiveAsync(long CartId)
-        {
-            return await _client.GetFromJsonAsync<bool>($"cart/makeinactive/{CartId}");
-        }
+        public Task<CartModel?> GetCartAsync(long CartId)
+            => _client.GetFromJsonAsync<CartModel>($"cart/getcart/{CartId}");
+
+        public Task<bool> MakeCartInActiveAsync(long CartId)
+            => _client.GetFromJsonAsync<bool>($"cart/makeinactive/{CartId}");
 
         public async Task<CartModel?> AddToCartAsync(CartItemModel item, long UserId)
         {
-            using var content = new StringContent(JsonSerializer.Serialize(item), Encoding.UTF8, "application/json");
-            using var response = await _client.PostAsync($"cart/additem/{UserId}", content);
-            if (response.IsSuccessStatusCode)
+            var payloadJson = JsonSerializer.Serialize(item);
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"cart/additem/{UserId}")
             {
-                return await response.Content.ReadFromJsonAsync<CartModel>();
-            }
-            return null;
+                Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
+            };
+            AddCommonHeaders(req, $"add:{UserId}:{payloadJson}");
+            using var resp = await _client.SendAsync(req);
+            if (!resp.IsSuccessStatusCode) return null;
+            return await resp.Content.ReadFromJsonAsync<CartModel>(JsonOpts);
         }
 
         public async Task<int> DeleteCartItemAsync(long CartId, int ItemId)
         {
-            // Ocelot does not support DeleteFromJsonAsync; use Send and parse content
-            using var request = new HttpRequestMessage(HttpMethod.Delete, $"cart/deleteItem/{CartId}/{ItemId}");
-            using var response = await _client.SendAsync(request);
-            if (response.IsSuccessStatusCode)
-            {
-                var json = await response.Content.ReadAsStringAsync();
-                if (int.TryParse(json, out var value)) return value;
-                return await response.Content.ReadFromJsonAsync<int>();
-            }
-            return 0;
+            using var req = new HttpRequestMessage(HttpMethod.Delete, $"cart/deleteItem/{CartId}/{ItemId}");
+            AddCommonHeaders(req, $"del:{CartId}:{ItemId}");
+            using var resp = await _client.SendAsync(req);
+            if (!resp.IsSuccessStatusCode) return 0;
+            var body = await resp.Content.ReadAsStringAsync();
+            return int.TryParse(body, out var v) ? v : await resp.Content.ReadFromJsonAsync<int>();
         }
 
         public async Task<int> UpdateQuantity(long CartId, int ItemId, int Quantity)
         {
-            return await _client.GetFromJsonAsync<int>($"cart/UpdateQuantity/{CartId}/{ItemId}/{Quantity}");
+            using var req = new HttpRequestMessage(HttpMethod.Get, $"cart/UpdateQuantity/{CartId}/{ItemId}/{Quantity}");
+            AddCommonHeaders(req, $"qty:{CartId}:{ItemId}:{Quantity}");
+            using var resp = await _client.SendAsync(req);
+            if (!resp.IsSuccessStatusCode) return 0;
+            var body = await resp.Content.ReadAsStringAsync();
+            return int.TryParse(body, out var v) ? v : await resp.Content.ReadFromJsonAsync<int>();
         }
 
         public async Task<int> GetCartItemCount(long UserId)
@@ -71,13 +82,13 @@ namespace eShopFlix.Web.HttpClients
             {
                 return await _client.GetFromJsonAsync<int>($"cart/GetCartItemCount/{UserId}");
             }
-            catch (Exception ex)
+            catch
             {
-                throw new Exception("Error fetching cart item count", ex);
+                return 0;
             }
         }
 
-        // ====== New endpoints for expanded cart features ======
+        // Extended endpoints (unchanged reads)
         public Task<CartTotalsModel?> GetTotalsAsync(long cartId)
             => _client.GetFromJsonAsync<CartTotalsModel>($"cart/totals/{cartId}");
 
@@ -87,14 +98,21 @@ namespace eShopFlix.Web.HttpClients
         public async Task<bool> ApplyCouponAsync(long cartId, string code, decimal amount, string? description = null)
         {
             var payload = new { CartId = cartId, Code = code, Amount = amount, Description = description };
-            var res = await _client.PostAsJsonAsync("cart/applycoupon", payload);
-            return res.IsSuccessStatusCode;
+            using var req = new HttpRequestMessage(HttpMethod.Post, "cart/applycoupon")
+            {
+                Content = JsonContent.Create(payload)
+            };
+            AddCommonHeaders(req, $"coupon:add:{cartId}:{code}:{amount}");
+            var resp = await _client.SendAsync(req);
+            return resp.IsSuccessStatusCode;
         }
 
         public async Task<bool> RemoveCouponAsync(long cartId, string code)
         {
-            var res = await _client.DeleteAsync($"cart/removecoupon/{cartId}/{code}");
-            return res.IsSuccessStatusCode;
+            using var req = new HttpRequestMessage(HttpMethod.Delete, $"cart/removecoupon/{cartId}/{code}");
+            AddCommonHeaders(req, $"coupon:rem:{cartId}:{code}");
+            var resp = await _client.SendAsync(req);
+            return resp.IsSuccessStatusCode;
         }
 
         public Task<List<ShipmentModel>?> GetShipmentsAsync(long cartId)
@@ -105,15 +123,20 @@ namespace eShopFlix.Web.HttpClients
             var payload = new
             {
                 CartId = cartId,
-                Carrier = method.Carrier,
-                MethodCode = method.MethodCode,
-                MethodName = method.MethodName,
-                Cost = method.Cost,
-                EstimatedDays = method.EstimatedDays,
+                method.Carrier,
+                method.MethodCode,
+                method.MethodName,
+                method.Cost,
+                method.EstimatedDays,
                 AddressSnapshotJson = addressSnapshotJson
             };
-            var res = await _client.PostAsJsonAsync("cart/selectshipping", payload);
-            return res.IsSuccessStatusCode;
+            using var req = new HttpRequestMessage(HttpMethod.Post, "cart/selectshipping")
+            {
+                Content = JsonContent.Create(payload)
+            };
+            AddCommonHeaders(req, $"ship:{cartId}:{method.MethodCode}:{method.Cost}");
+            var resp = await _client.SendAsync(req);
+            return resp.IsSuccessStatusCode;
         }
 
         public Task<List<TaxLineModel>?> GetTaxesAsync(long cartId)
@@ -121,18 +144,33 @@ namespace eShopFlix.Web.HttpClients
 
         public async Task<bool> ClearAsync(long cartId)
         {
-            var res = await _client.PostAsync($"cart/clear/{cartId}", null);
-            return res.IsSuccessStatusCode;
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"cart/clear/{cartId}");
+            AddCommonHeaders(req, $"clear:{cartId}");
+            var resp = await _client.SendAsync(req);
+            return resp.IsSuccessStatusCode;
         }
 
-        // Save for later
         public Task<List<SavedForLaterItemModel>?> GetSavedForLaterAsync(long cartId)
             => _client.GetFromJsonAsync<List<SavedForLaterItemModel>>($"cart/savedforlater/{cartId}");
 
-        public Task<bool> SaveForLaterAsync(long cartId, int itemId)
-            => _client.PostAsJsonAsync("cart/saveforlater", new { CartId = cartId, ItemId = itemId }).ContinueWith(t => t.Result.IsSuccessStatusCode);
+        public async Task<bool> SaveForLaterAsync(long cartId, int itemId)
+        {
+            var payload = new { CartId = cartId, ItemId = itemId };
+            using var req = new HttpRequestMessage(HttpMethod.Post, "cart/saveforlater")
+            {
+                Content = JsonContent.Create(payload)
+            };
+            AddCommonHeaders(req, $"sfl:add:{cartId}:{itemId}");
+            var resp = await _client.SendAsync(req);
+            return resp.IsSuccessStatusCode;
+        }
 
-        public Task<bool> MoveSavedToCartAsync(int savedItemId)
-            => _client.PostAsync($"cart/movesavedtocart/{savedItemId}", null).ContinueWith(t => t.Result.IsSuccessStatusCode);
+        public async Task<bool> MoveSavedToCartAsync(int savedItemId)
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"cart/movesavedtocart/{savedItemId}");
+            AddCommonHeaders(req, $"sfl:move:{savedItemId}");
+            var resp = await _client.SendAsync(req);
+            return resp.IsSuccessStatusCode;
+        }
     }
 }

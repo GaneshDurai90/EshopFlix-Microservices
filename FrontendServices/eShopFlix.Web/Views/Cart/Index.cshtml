@@ -142,3 +142,14 @@ else
         Your Cart is empty.
     </div>
 }
+<div id="cartStatus" class="small text-muted mb-2" style="display:none;">Updating...</div>
+<script>
+    document.addEventListener('cart-updating', () => {
+        const el = document.getElementById('cartStatus');
+        if (el) el.style.display = 'block';
+    });
+    document.addEventListener('cart-updated', () => {
+        const el = document.getElementById('cartStatus');
+        if (el) el.style.display = 'none';
+    });
+</script>

@@ -1,6 +1,6 @@
 ﻿{
    "CodeGenerationMode": 4,
-   "ContextClassName": "CartServiceContext",
+   "ContextClassName": "CartServiceDbContext",
    "ContextNamespace": null,
    "FilterSchemas": false,
    "IncludeConnectionString": false,
@@ -57,6 +57,18 @@
       },
       {
          "Name": "[dbo].[CartTotals]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[IdempotentRequests]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[InboxMessages]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[OutboxMessages]",
          "ObjectType": 0
       },
       {

@@ -165,5 +165,17 @@ namespace eShopFlix.Web.Controllers
             var ok = await _cartServiceClient.MoveSavedToCartAsync(savedItemId);
             return Json(new { success = ok });
         }
+
+        [HttpGet]
+        public IActionResult AddItem() => View();
+
+        [HttpPost]
+        public async Task<IActionResult> AddItem(CartItemModel model)
+        {
+            if (!ModelState.IsValid) return View(model);
+            var cart = await _cartServiceClient.AddToCartAsync(model, CurrentUser.UserId);
+            if (cart is null) return View(model);
+            return RedirectToAction(nameof(Index));
+        }
     }
 }

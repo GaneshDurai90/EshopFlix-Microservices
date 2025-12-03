@@ -43,7 +43,7 @@ namespace CartService.Infrastructure.Persistence
             _context = context;
         }
 
-        public virtual async Task<List<SP_Cart_AddAdjustmentResult>> SP_Cart_AddAdjustmentAsync(long? cartId, int? cartItemId, string type, string description, decimal? amount, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default)
+        public virtual async Task<int> SP_Cart_AddAdjustmentAsync(long? cartId, int? cartItemId, string type, string description, decimal? amount, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default)
         {
             var parameterreturnValue = new SqlParameter
             {
@@ -90,7 +90,7 @@ namespace CartService.Infrastructure.Persistence
                 },
                 parameterreturnValue,
             };
-            var _ = await _context.SqlQueryAsync<SP_Cart_AddAdjustmentResult>("EXEC @returnValue = [dbo].[SP_Cart_AddAdjustment] @CartId = @CartId, @CartItemId = @CartItemId, @Type = @Type, @Description = @Description, @Amount = @Amount", sqlParameters, cancellationToken);
+            var _ = await _context.Database.ExecuteSqlRawAsync("EXEC @returnValue = [dbo].[SP_Cart_AddAdjustment] @CartId = @CartId, @CartItemId = @CartItemId, @Type = @Type, @Description = @Description, @Amount = @Amount", sqlParameters, cancellationToken);
 
             returnValue?.SetValue(parameterreturnValue.Value);
 
@@ -190,7 +190,7 @@ namespace CartService.Infrastructure.Persistence
             return _;
         }
 
-        public virtual async Task<List<SP_Cart_ApplyCouponResult>> SP_Cart_ApplyCouponAsync(long? cartId, string code, string description, decimal? discountAmount, string source, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default)
+        public virtual async Task<int> SP_Cart_ApplyCouponAsync(long? cartId, string code, string description, decimal? discountAmount, string source, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default)
         {
             var parameterreturnValue = new SqlParameter
             {
@@ -238,14 +238,14 @@ namespace CartService.Infrastructure.Persistence
                 },
                 parameterreturnValue,
             };
-            var _ = await _context.SqlQueryAsync<SP_Cart_ApplyCouponResult>("EXEC @returnValue = [dbo].[SP_Cart_ApplyCoupon] @CartId = @CartId, @Code = @Code, @Description = @Description, @DiscountAmount = @DiscountAmount, @Source = @Source", sqlParameters, cancellationToken);
+            var _ = await _context.Database.ExecuteSqlRawAsync("EXEC @returnValue = [dbo].[SP_Cart_ApplyCoupon] @CartId = @CartId, @Code = @Code, @Description = @Description, @DiscountAmount = @DiscountAmount, @Source = @Source", sqlParameters, cancellationToken);
 
             returnValue?.SetValue(parameterreturnValue.Value);
 
             return _;
         }
 
-        public virtual async Task<List<SP_Cart_ClearResult>> SP_Cart_ClearAsync(long? cartId, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default)
+        public virtual async Task<int> SP_Cart_ClearAsync(long? cartId, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default)
         {
             var parameterreturnValue = new SqlParameter
             {
@@ -264,7 +264,7 @@ namespace CartService.Infrastructure.Persistence
                 },
                 parameterreturnValue,
             };
-            var _ = await _context.SqlQueryAsync<SP_Cart_ClearResult>("EXEC @returnValue = [dbo].[SP_Cart_Clear] @CartId = @CartId", sqlParameters, cancellationToken);
+            var _ = await _context.Database.ExecuteSqlRawAsync("EXEC @returnValue = [dbo].[SP_Cart_Clear] @CartId = @CartId", sqlParameters, cancellationToken);
 
             returnValue?.SetValue(parameterreturnValue.Value);
 
@@ -423,7 +423,7 @@ namespace CartService.Infrastructure.Persistence
             return _;
         }
 
-        public virtual async Task<List<SP_Cart_RemoveCouponResult>> SP_Cart_RemoveCouponAsync(long? cartId, string code, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default)
+        public virtual async Task<int> SP_Cart_RemoveCouponAsync(long? cartId, string code, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default)
         {
             var parameterreturnValue = new SqlParameter
             {
@@ -449,14 +449,14 @@ namespace CartService.Infrastructure.Persistence
                 },
                 parameterreturnValue,
             };
-            var _ = await _context.SqlQueryAsync<SP_Cart_RemoveCouponResult>("EXEC @returnValue = [dbo].[SP_Cart_RemoveCoupon] @CartId = @CartId, @Code = @Code", sqlParameters, cancellationToken);
+            var _ = await _context.Database.ExecuteSqlRawAsync("EXEC @returnValue = [dbo].[SP_Cart_RemoveCoupon] @CartId = @CartId, @Code = @Code", sqlParameters, cancellationToken);
 
             returnValue?.SetValue(parameterreturnValue.Value);
 
             return _;
         }
 
-        public virtual async Task<List<SP_Cart_RemoveItemResult>> SP_Cart_RemoveItemAsync(int? cartItemId, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default)
+        public virtual async Task<int> SP_Cart_RemoveItemAsync(int? cartItemId, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default)
         {
             var parameterreturnValue = new SqlParameter
             {
@@ -475,14 +475,14 @@ namespace CartService.Infrastructure.Persistence
                 },
                 parameterreturnValue,
             };
-            var _ = await _context.SqlQueryAsync<SP_Cart_RemoveItemResult>("EXEC @returnValue = [dbo].[SP_Cart_RemoveItem] @CartItemId = @CartItemId", sqlParameters, cancellationToken);
+            var _ = await _context.Database.ExecuteSqlRawAsync("EXEC @returnValue = [dbo].[SP_Cart_RemoveItem] @CartItemId = @CartItemId", sqlParameters, cancellationToken);
 
             returnValue?.SetValue(parameterreturnValue.Value);
 
             return _;
         }
 
-        public virtual async Task<List<SP_Cart_SelectShippingMethodResult>> SP_Cart_SelectShippingMethodAsync(long? cartId, string carrier, string methodCode, string methodName, decimal? cost, int? estimatedDays, string addressSnapshotJson, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default)
+        public virtual async Task<int> SP_Cart_SelectShippingMethodAsync(long? cartId, string carrier, string methodCode, string methodName, decimal? cost, int? estimatedDays, string addressSnapshotJson, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default)
         {
             var parameterreturnValue = new SqlParameter
             {
@@ -543,7 +543,7 @@ namespace CartService.Infrastructure.Persistence
                 },
                 parameterreturnValue,
             };
-            var _ = await _context.SqlQueryAsync<SP_Cart_SelectShippingMethodResult>("EXEC @returnValue = [dbo].[SP_Cart_SelectShippingMethod] @CartId = @CartId, @Carrier = @Carrier, @MethodCode = @MethodCode, @MethodName = @MethodName, @Cost = @Cost, @EstimatedDays = @EstimatedDays, @AddressSnapshotJson = @AddressSnapshotJson", sqlParameters, cancellationToken);
+            var _ = await _context.Database.ExecuteSqlRawAsync("EXEC @returnValue = [dbo].[SP_Cart_SelectShippingMethod] @CartId = @CartId, @Carrier = @Carrier, @MethodCode = @MethodCode, @MethodName = @MethodName, @Cost = @Cost, @EstimatedDays = @EstimatedDays, @AddressSnapshotJson = @AddressSnapshotJson", sqlParameters, cancellationToken);
 
             returnValue?.SetValue(parameterreturnValue.Value);
 
@@ -631,7 +631,7 @@ namespace CartService.Infrastructure.Persistence
             return _;
         }
 
-        public virtual async Task<List<SP_Cart_UpdateItemQuantityResult>> SP_Cart_UpdateItemQuantityAsync(int? cartItemId, int? quantity, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default)
+        public virtual async Task<int> SP_Cart_UpdateItemQuantityAsync(int? cartItemId, int? quantity, OutputParameter<int> returnValue = null, CancellationToken cancellationToken = default)
         {
             var parameterreturnValue = new SqlParameter
             {
@@ -656,7 +656,7 @@ namespace CartService.Infrastructure.Persistence
                 },
                 parameterreturnValue,
             };
-            var _ = await _context.SqlQueryAsync<SP_Cart_UpdateItemQuantityResult>("EXEC @returnValue = [dbo].[SP_Cart_UpdateItemQuantity] @CartItemId = @CartItemId, @Quantity = @Quantity", sqlParameters, cancellationToken);
+            var _ = await _context.Database.ExecuteSqlRawAsync("EXEC @returnValue = [dbo].[SP_Cart_UpdateItemQuantity] @CartItemId = @CartItemId, @Quantity = @Quantity", sqlParameters, cancellationToken);
 
             returnValue?.SetValue(parameterreturnValue.Value);
 

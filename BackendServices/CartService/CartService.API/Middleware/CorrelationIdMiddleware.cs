@@ -9,18 +9,22 @@ namespace CartService.API.Middleware
         private readonly RequestDelegate _next;
 
         public CorrelationIdMiddleware(RequestDelegate next) => _next = next;
-
+            
         public async Task Invoke(HttpContext context)
         {
-            // Prefer incoming header; else use current traceId; else new guid
             var correlationId = context.Request.Headers[HeaderName].FirstOrDefault()
                              ?? Activity.Current?.TraceId.ToString()
                              ?? Guid.NewGuid().ToString("N");
 
             context.Items[HeaderName] = correlationId;
-            context.Response.Headers[HeaderName] = correlationId;
+            if (!context.Response.HasStarted)
+                context.Response.Headers[HeaderName] = correlationId;
 
+            var activity = Activity.Current;
             using (LogContext.PushProperty("CorrelationId", correlationId))
+            using (LogContext.PushProperty("TraceId", activity?.TraceId.ToString()))
+            using (LogContext.PushProperty("SpanId", activity?.SpanId.ToString()))
+            using (LogContext.PushProperty("RequestId", context.TraceIdentifier))
             {
                 await _next(context);
             }

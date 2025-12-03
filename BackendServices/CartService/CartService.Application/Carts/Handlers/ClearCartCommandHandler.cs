@@ -1,0 +1,37 @@
+using CartService.Application.CQRS;
+using CartService.Application.EventSourcing;
+using CartService.Application.Messaging;
+using CartService.Application.Snapshots;
+using CartService.Application.Repositories;
+using CartService.Domain.Events;
+using CartService.Application.Carts.Commands;
+
+namespace CartService.Application.Carts.Handlers
+{
+    public sealed class ClearCartCommandHandler : ICommandHandler<ClearCartCommand, bool>
+    {
+        private readonly ICartRepository _repo;
+        private readonly IEventStore _store;
+        private readonly IOutboxPublisher _outbox;
+        private readonly ISnapshotPolicy _snapshotPolicy;
+        private readonly ISnapshotWriter _snapshotWriter;
+
+        public ClearCartCommandHandler(ICartRepository repo, IEventStore store, IOutboxPublisher outbox, ISnapshotPolicy snapshotPolicy, ISnapshotWriter snapshotWriter)
+        {
+            _repo = repo; _store = store; _outbox = outbox; _snapshotPolicy = snapshotPolicy; _snapshotWriter = snapshotWriter;
+        }
+
+        public async Task<bool> Handle(ClearCartCommand command, CancellationToken ct)
+        {
+            await _repo.ClearAsync(command.CartId, ct);
+            var evt = new CartClearedV1(command.CartId, 0, DateTime.UtcNow, "CartService");
+            var version = await _store.AppendAsync(command.CartId, new[] { evt }, "CartService", ct);
+
+            await _outbox.EnqueueAsync("Cart.Cleared.v1", evt, "analytics", ct);
+            if (_snapshotPolicy.ShouldSnapshot(version))
+                await _snapshotWriter.WriteAsync(command.CartId, ct);
+
+            return true;
+        }
+    }
+}

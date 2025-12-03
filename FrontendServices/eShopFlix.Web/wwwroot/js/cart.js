@@ -67,58 +67,51 @@ $(document).ready(function () {
     });
 });
 
-// ===== New feature JS helpers =====
-function refreshOrderSummary(cartId) {
-    $("#orderSummaryContainer").load('/Cart/OrderSummary?cartId=' + cartId);
-}
-function refreshCoupons(cartId) {
-    $("#couponsContainer").load('/Cart/Coupons?cartId=' + cartId);
-}
-function refreshShipping(cartId) {
-    $("#shippingContainer").load('/Cart/Shipping?cartId=' + cartId);
-}
-function refreshSaved(cartId) {
-    $("#savedContainer").load('/Cart/Saved?cartId=' + cartId);
-}
+(function () {
+    const refreshSections = async (cartId) => {
+        try {
+            const [summaryHtml, couponsHtml, shippingHtml, savedHtml] = await Promise.all([
+                fetch(`/Cart/OrderSummary?cartId=${cartId}`).then(r => r.text()),
+                fetch(`/Cart/Coupons?cartId=${cartId}`).then(r => r.text()),
+                fetch(`/Cart/Shipping?cartId=${cartId}`).then(r => r.text()),
+                fetch(`/Cart/Saved?cartId=${cartId}`).then(r => r.text())
+            ]);
 
-function applyCoupon(cartId) {
-    var code = $('#couponCode').val();
-    var amount = parseFloat($('#couponAmount').val() || '0');
-    $.post('/Cart/ApplyCoupon', { cartId: cartId, code: code, amount: amount })
-        .done(function () {
-            refreshCoupons(cartId);
-            refreshOrderSummary(cartId);
-        })
-        .fail(function (xhr) { console.error('applyCoupon failed', xhr.responseText); });
-}
-function removeCoupon(cartId, code) {
-    $.post('/Cart/RemoveCoupon', { cartId: cartId, code: code })
-        .done(function () { refreshCoupons(cartId); refreshOrderSummary(cartId); })
-        .fail(function (xhr) { console.error('removeCoupon failed', xhr.responseText); });
-}
-function selectShipping(cartId, methodCode) {
-    var row = $("button[onclick*='" + methodCode + "']");
-    var costText = row.find('span').last().text().replace('₹','');
-    var cost = parseFloat(costText) || 0;
-    var carrier = row.text().trim().split(' - ')[0];
-    var methodName = row.text().trim();
-    $.post('/Cart/SelectShipping', { cartId: cartId, Carrier: carrier, MethodCode: methodCode, MethodName: methodName, Cost: cost })
-        .done(function () { refreshShipping(cartId); refreshOrderSummary(cartId); })
-        .fail(function (xhr) { console.error('selectShipping failed', xhr.responseText); });
-}
-function clearCart(cartId) {
-    $.post('/Cart/Clear', { cartId: cartId })
-        .done(function () { location.reload(); })
-        .fail(function (xhr) { console.error('clearCart failed', xhr.responseText); });
-}
+            const summary = document.getElementById("orderSummaryContainer");
+            const coupons = document.getElementById("couponsContainer");
+            const shipping = document.getElementById("shippingContainer");
+            const saved = document.getElementById("savedContainer");
 
-function saveForLater(cartId, itemId) {
-    $.post('/Cart/SaveForLater', { cartId: cartId, itemId: itemId })
-        .done(function () { refreshSaved(cartId); location.reload(); })
-        .fail(function (xhr) { console.error('saveForLater failed', xhr.responseText); });
-}
-function moveSavedToCart(savedItemId) {
-    $.post('/Cart/MoveSavedToCart', { savedItemId: savedItemId })
-        .done(function () { location.reload(); })
-        .fail(function (xhr) { console.error('moveSavedToCart failed', xhr.responseText); });
-}
+            if (summary) summary.innerHTML = summaryHtml;
+            if (coupons) coupons.innerHTML = couponsHtml;
+            if (shipping) shipping.innerHTML = shippingHtml;
+            if (saved) saved.innerHTML = savedHtml;
+        } catch (e) {
+            console.warn("Refresh failed", e);
+        }
+    };
+
+    // Example hooks for existing buttons (ensure these functions exist or wire them)
+    window.cartMutations = {
+        addItem: async (itemId, unitPrice, qty, userId, cartId) => {
+            await fetch(`/Cart/AddToCart/${itemId}/${unitPrice}/${qty}`, { method: 'GET' });
+            await refreshSections(cartId);
+        },
+        updateQuantity: async (cartId, itemId, delta) => {
+            await fetch(`/Cart/UpdateQuantity/${itemId}/${delta}/${cartId}`, { method: 'GET' });
+            await refreshSections(cartId);
+        },
+        deleteItem: async (cartId, itemId) => {
+            await fetch(`/Cart/DeleteItem/${itemId}/${cartId}`, { method: 'GET' });
+            await refreshSections(cartId);
+        },
+        applyCoupon: async (cartId, code, amount) => {
+            const form = new FormData();
+            form.append("cartId", cartId);
+            form.append("code", code);
+            form.append("amount", amount);
+            await fetch(`/Cart/ApplyCoupon?cartId=${cartId}&code=${encodeURIComponent(code)}&amount=${amount}`, { method: 'POST', body: form });
+            await refreshSections(cartId);
+        }
+    };
+})();
