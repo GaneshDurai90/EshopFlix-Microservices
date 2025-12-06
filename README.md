@@ -147,4 +147,21 @@ If you plan to add Docker and docker-compose:
 
 ## License
 
-Specify a license (e.g., MIT) if you intend the project to be open-source.
+Copyright (c) 2025 Your Name
+
+All rights reserved.
+
+This repository and its contents are provided for viewing and
+personal educational purposes only.
+
+Permission is NOT granted to:
+- Use this code in any personal, academic, or commercial project
+- Modify, copy, or create derivative works from this code
+- Distribute, sublicense, publish, or sell this code
+- Include this code in any software, application, or service
+
+Permission IS granted only to:
+- View the source code for personal learning purposes
+
+Any use of this code beyond the permissions explicitly granted
+above is strictly prohibited.
