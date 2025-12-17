@@ -11,15 +11,63 @@ public partial class Product
 
     public string Name { get; set; }
 
-    public string Description { get; set; }
+    public string Slug { get; set; }
 
-    public decimal UnitPrice { get; set; }
+    public string ShortDescription { get; set; }
 
-    public string ImageUrl { get; set; }
+    public string LongDescription { get; set; }
 
-    public int CategoryId { get; set; }
+    public int? BrandId { get; set; }
 
-    public DateTime? CreatedDate { get; set; }
+    public int? ManufacturerId { get; set; }
+
+    public int? CategoryId { get; set; }
+
+    public int? DefaultSkuId { get; set; }
+
+    public byte Status { get; set; }
+
+    public bool IsSearchable { get; set; }
+
+    public decimal? Weight { get; set; }
+
+    public string Dimensions { get; set; }
+
+    public string PrimaryImageUrl { get; set; }
+
+    public string SeoTitle { get; set; }
+
+    public string SeoDescription { get; set; }
+
+    public string SeoKeywords { get; set; }
+
+    public string CreatedBy { get; set; }
+
+    public DateTime CreatedDate { get; set; }
+
+    public string LastModifiedBy { get; set; }
+
+    public DateTime? LastModifiedDate { get; set; }
+
+    public virtual Brand Brand { get; set; }
 
     public virtual Category Category { get; set; }
+
+    public virtual Manufacturer Manufacturer { get; set; }
+
+    public virtual ICollection<ProductAttribute> ProductAttributes { get; set; } = new List<ProductAttribute>();
+
+    public virtual ICollection<ProductImage> ProductImages { get; set; } = new List<ProductImage>();
+
+    public virtual ICollection<ProductRelationship> ProductRelationshipParentProducts { get; set; } = new List<ProductRelationship>();
+
+    public virtual ICollection<ProductRelationship> ProductRelationshipRelatedProducts { get; set; } = new List<ProductRelationship>();
+
+    public virtual ICollection<ProductReview> ProductReviews { get; set; } = new List<ProductReview>();
+
+    public virtual ICollection<ProductVariant> ProductVariants { get; set; } = new List<ProductVariant>();
+
+    public virtual ICollection<Promotion> Promotions { get; set; } = new List<Promotion>();
+
+    public virtual ICollection<Tag> Tags { get; set; } = new List<Tag>();
 }

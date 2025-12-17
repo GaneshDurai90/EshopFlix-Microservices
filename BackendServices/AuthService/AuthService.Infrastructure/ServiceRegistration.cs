@@ -19,6 +19,7 @@ namespace AuthService.Infrastructure
 
             // Register repositories
             services.AddScoped<IUserRepository, UserRepository>();
+            services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 
             // Register AutoMapper
             services.AddAutoMapper(cfg => cfg.AddProfile<Authmapper>());

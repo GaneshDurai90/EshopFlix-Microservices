@@ -1,61 +1,106 @@
-﻿@model IEnumerable<eShopFlix.Web.Models.ProductModel>
+﻿@model eShopFlix.Web.Models.CatalogIndexViewModel
 @{
     ViewData["Title"] = "Home";
 }
 
-<div class="d-flex align-items-center justify-content-between mb-3">
-    <h2 class="mb-0">Explore Products</h2>
-    <form class="d-flex" role="search" onsubmit="return false;">
-        <input class="form-control" type="search" placeholder="Search products..." aria-label="Search" id="product-search" />
+<div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+    <div>
+        <h2 class="mb-1">Explore Products</h2>
+        <p class="text-muted mb-0">Search across the full catalog with production-ready Pricing, Promotions, and Reviews.</p>
+    </div>
+    <form asp-action="Index" method="get" class="d-flex gap-2" role="search">
+        <input class="form-control" type="search" placeholder="Search products..." name="term" value="@Model?.SearchTerm" aria-label="Search" />
+        <button class="btn btn-primary" type="submit">Search</button>
     </form>
 </div>
 
-@if (Model != null && Model.Any())
+@if (Model?.Promotions?.Any() == true)
 {
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-3" id="product-grid">
-        @foreach (var product in Model)
-        {
+    <div class="mb-4">
+        <h5 class="text-uppercase text-muted small mb-2">Active promotions</h5>
+        <div class="row row-cols-1 row-cols-md-3 g-3">
+            @foreach (var promo in Model.Promotions)
+            {
+                <div class="col">
+                    <div class="card shadow-sm border-primary border-opacity-50 h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="badge bg-primary">@promo.Code</span>
+                                <small class="text-muted">@promo.StartDate.ToString("dd MMM") - @promo.EndDate.ToString("dd MMM")</small>
+                            </div>
+                            <h6 class="mb-1">@promo.Name</h6>
+                            <p class="small text-muted mb-0">@promo.Description ?? "Site-wide savings"</p>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@if (Model?.Products?.Any() == true)
+{
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-3">
+                        @foreach (var product in Model.Products)
+                        {
+                            var hasPrice = product.Price.HasValue && product.Price > 0;
+                            var priceToken = product.Price?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
             <div class="col">
-                <div class="card h-100 shadow-sm product-card" data-name="@product.Name">
-                    <img class="card-img-top object-fit-cover" style="height:180px" src="@product.ImageUrl" alt="@product.Name">
+                <div class="card h-100 shadow-sm">
+                    <img class="card-img-top object-fit-cover" style="height:200px" src="@product.ImageUrl" alt="@product.Name" />
                     <div class="card-body d-flex flex-column">
+                        <span class="badge bg-light text-uppercase text-muted align-self-start mb-2">@product.CategoryName</span>
                         <h6 class="card-title mb-1 text-truncate" title="@product.Name">@product.Name</h6>
-                        <p class="card-text small text-muted flex-grow-1">@product.Description</p>
+                        <p class="card-text small text-muted flex-grow-1">@(string.IsNullOrWhiteSpace(product.Description) ? "Recently added" : product.Description)</p>
                         <div class="d-flex justify-content-between align-items-center">
-                            <span class="fw-semibold">₹@product.UnitPrice.ToString("##.#")</span>
-                            @if (CurrentUser != null)
+                            @if (hasPrice)
                             {
-                                <button onclick="addToCart('@product.ProductId','@product.Name','@product.UnitPrice', 1)" class="btn btn-sm btn-primary">Add To Cart</button>
+                                <span class="fw-semibold">₹@product.Price.Value.ToString("N2")</span>
                             }
                             else
                             {
-                                <a href="/Account/Login?returnUrl=/" class="btn btn-sm btn-primary">Add to Cart</a>
+                                <span class="text-muted small">Price at checkout</span>
                             }
+                            <div class="btn-group">
+                                <a asp-controller="Products" asp-action="Details" asp-route-id="@product.ProductId" class="btn btn-sm btn-outline-secondary">Details</a>
+                                @if (CurrentUser != null && hasPrice)
+                                {
+                                    <button type="button" class="btn btn-sm btn-primary" onclick="addToCart('@product.ProductId','@product.Name','@priceToken',1)">Add</button>
+                                }
+                                else if (CurrentUser == null && hasPrice)
+                                {
+                                    <a href="/Account/Login?returnUrl=/" class="btn btn-sm btn-primary">Sign in</a>
+                                }
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         }
     </div>
+
+    if (Model.TotalPages > 1)
+    {
+        <nav class="mt-4">
+            <ul class="pagination justify-content-center">
+                <li class="page-item @(Model.Page == 1 ? "disabled" : string.Empty)">
+                    <a class="page-link" asp-action="Index" asp-route-term="@Model.SearchTerm" asp-route-page="@(Model.Page - 1)" asp-route-pageSize="@Model.PageSize">Previous</a>
+                </li>
+                @for (var i = 1; i <= Model.TotalPages; i++)
+                {
+                    <li class="page-item @(i == Model.Page ? "active" : string.Empty)">
+                        <a class="page-link" asp-action="Index" asp-route-term="@Model.SearchTerm" asp-route-page="@i" asp-route-pageSize="@Model.PageSize">@i</a>
+                    </li>
+                }
+                <li class="page-item @(Model.Page == Model.TotalPages ? "disabled" : string.Empty)">
+                    <a class="page-link" asp-action="Index" asp-route-term="@Model.SearchTerm" asp-route-page="@(Model.Page + 1)" asp-route-pageSize="@Model.PageSize">Next</a>
+                </li>
+            </ul>
+        </nav>
+    }
 }
 else
 {
     <div class="alert alert-info">No products found.</div>
-}
-
-@section Scripts{
-<script>
-    const search = document.getElementById('product-search');
-    const grid = document.getElementById('product-grid');
-    if (search && grid) {
-        search.addEventListener('input', function(){
-            const q = this.value.toLowerCase();
-            grid.querySelectorAll('.product-card').forEach(card => {
-                const name = (card.getAttribute('data-name')||'').toLowerCase();
-                card.parentElement.style.display = name.includes(q) ? '' : 'none';
-            });
-        });
-    }
-</script>
 }
 

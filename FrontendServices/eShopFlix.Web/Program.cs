@@ -1,10 +1,19 @@
 using eShopFlix.Web.HttpClients;
+using eShopFlix.Web.Filters;
+using eShopFlix.Web.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllersWithViews();
+builder.Services.AddControllersWithViews(options =>
+{
+    options.Filters.Add<CartInfoFilter>();
+});
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddTransient<JwtForwardingHandler>();
+builder.Services.AddScoped<IAuthTicketService, AuthTicketService>();
+builder.Services.AddScoped<CartInfoFilter>();
 
 // Central API Gateway base address
 var apiGatewayBase = builder.Configuration["ApigatewayAddress"] ?? "https://localhost:7269";
@@ -16,7 +25,7 @@ var apiGatewayBase = builder.Configuration["ApigatewayAddress"] ?? "https://loca
 builder.Services.AddHttpClient<CatalogServiceClient>(client =>
 {
     client.BaseAddress = new Uri(apiGatewayBase);
-});
+}).AddHttpMessageHandler<JwtForwardingHandler>();
 
 builder.Services.AddHttpClient<AuthServiceClient>(client =>
 {
@@ -26,12 +35,12 @@ builder.Services.AddHttpClient<AuthServiceClient>(client =>
 builder.Services.AddHttpClient<CartServiceClient>(client =>
 {
     client.BaseAddress = new Uri(apiGatewayBase);
-});
+}).AddHttpMessageHandler<JwtForwardingHandler>();
 
 builder.Services.AddHttpClient<PaymentServiceClient>(client =>
 {
     client.BaseAddress = new Uri(apiGatewayBase);
-});
+}).AddHttpMessageHandler<JwtForwardingHandler>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>

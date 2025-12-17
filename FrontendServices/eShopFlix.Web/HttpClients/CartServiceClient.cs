@@ -78,6 +78,9 @@ namespace eShopFlix.Web.HttpClients
 
         public async Task<int> GetCartItemCount(long UserId)
         {
+            // Don't make API call with invalid userId
+            if (UserId <= 0) return 0;
+            
             try
             {
                 return await _client.GetFromJsonAsync<int>($"cart/GetCartItemCount/{UserId}");

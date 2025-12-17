@@ -19,14 +19,47 @@ namespace AuthService.API.Controllers
         public IActionResult Login([FromBody] LoginDTO loginDTO)
 
         {
-
-            UserDTO user = _userAppService.LoginUser(loginDTO);
-            if (user == null)
+            try
             {
-                return Unauthorized("Invalid email or password");
+                UserDTO user = _userAppService.LoginUser(loginDTO);
+                if (user == null)
+                {
+                    return Unauthorized("Invalid email or password");
+                }
+                return Ok(user);
             }
-            return Ok(user);
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(ex.Message);
+            }
+        }
 
+        [HttpPost]
+        public IActionResult Refresh([FromBody] RefreshTokenRequestDTO request)
+        {
+            try
+            {
+                var tokenResponse = _userAppService.RefreshToken(request);
+                return Ok(tokenResponse);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(ex.Message);
+            }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Revoke([FromBody] RefreshTokenRequestDTO request)
+        {
+            try
+            {
+                await _userAppService.RevokeRefreshTokenAsync(request);
+                return Ok();
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(ex.Message);
+            }
         }
 
         [HttpPost]

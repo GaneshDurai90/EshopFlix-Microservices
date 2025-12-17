@@ -6,6 +6,8 @@ namespace AuthService.Application.Services.Abstractions
     {
 
         UserDTO LoginUser(LoginDTO loginDTO);
+        TokenResponseDTO RefreshToken(RefreshTokenRequestDTO request);
+        Task RevokeRefreshTokenAsync(RefreshTokenRequestDTO request);
         bool SignUpUser(SignUpDTO signUpDTO,string role);
         IEnumerable<UserDTO> GetAllUsers();
     }

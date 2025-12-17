@@ -1,20 +1,22 @@
 ﻿using eShopFlix.Web.HttpClients;
 using eShopFlix.Web.Models;
+using eShopFlix.Web.Security;
+using eShopFlix.Web.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
-using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 
 namespace eShopFlix.Web.Controllers
 {
     public class AccountController : Controller
     {
-
-        AuthServiceClient _authServiceClient;
-        public AccountController(AuthServiceClient authServiceClient)
+        private readonly AuthServiceClient _authServiceClient;
+        private readonly IAuthTicketService _authTicketService;
+        public AccountController(AuthServiceClient authServiceClient, IAuthTicketService authTicketService)
         {
             _authServiceClient = authServiceClient;
+            _authTicketService = authTicketService;
 
         }
         public IActionResult Login()
@@ -23,14 +25,15 @@ namespace eShopFlix.Web.Controllers
         }
 
         [HttpPost]
-        public IActionResult Login(LoginModel model, string? returnUrl)
+        public async Task<IActionResult> Login(LoginModel model, string? returnUrl)
         {
             if (ModelState.IsValid)
             {
-                UserModel user = _authServiceClient.LoginAsync(model).Result;
+                UserModel user = await _authServiceClient.LoginAsync(model);
                 if (user != null)
                 {
-                    GenerateTicket(user);
+                    await _authTicketService.SignInAsync(HttpContext, user);
+                    SetTokenCookies(user);
 
                     if (!string.IsNullOrEmpty(returnUrl))
                     {
@@ -39,7 +42,7 @@ namespace eShopFlix.Web.Controllers
 
                     // After login, land on the public product explore page
                     // Admins go to Admin dashboard; users go to storefront
-                    if (user.Roles.Contains("Admin"))
+                    if (user.Roles?.Contains("Admin") == true)
                     {
                         return RedirectToAction("Index", "Home", new { area = "Admin" });
                     }
@@ -56,27 +59,56 @@ namespace eShopFlix.Web.Controllers
             return View();
         }
 
-        private void GenerateTicket(UserModel user)
+        private void SetTokenCookies(UserModel user)
         {
-            string strData = JsonSerializer.Serialize(user);
-            var claims = new List<Claim>
+            if (!string.IsNullOrWhiteSpace(user.Token))
             {
-                new Claim(ClaimTypes.UserData, strData),
-                new Claim(ClaimTypes.Email, user.Email),
-                new Claim(ClaimTypes.Role, string.Join(",",user.Roles))
-            };
-            var claimsIdentity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-            var authProperties = new AuthenticationProperties
+                Response.Cookies.Append(
+                    AuthCookieNames.AccessToken,
+                    user.Token,
+                    new CookieOptions
+                    {
+                        HttpOnly = true,
+                        Secure = true,
+                        SameSite = SameSiteMode.Lax,
+                        Expires = user.AccessTokenExpiresAt == default
+                            ? DateTimeOffset.UtcNow.AddMinutes(30)
+                            : new DateTimeOffset(DateTime.SpecifyKind(user.AccessTokenExpiresAt, DateTimeKind.Utc))
+                    });
+            }
+
+            if (!string.IsNullOrWhiteSpace(user.RefreshToken))
             {
-                IsPersistent = true,
-                ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(60)
-            };
-            HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(claimsIdentity), authProperties);
+                Response.Cookies.Append(
+                    AuthCookieNames.RefreshToken,
+                    user.RefreshToken,
+                    new CookieOptions
+                    {
+                        HttpOnly = true,
+                        Secure = true,
+                        SameSite = SameSiteMode.Strict,
+                        Expires = user.RefreshTokenExpiresAt == default
+                            ? DateTimeOffset.UtcNow.AddDays(14)
+                            : new DateTimeOffset(DateTime.SpecifyKind(user.RefreshTokenExpiresAt, DateTimeKind.Utc))
+                    });
+            }
         }
 
-        public IActionResult Logout()
+        private void ClearTokenCookies()
         {
-            HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme).Wait();
+            Response.Cookies.Delete(AuthCookieNames.AccessToken);
+            Response.Cookies.Delete(AuthCookieNames.RefreshToken);
+        }
+
+        public async Task<IActionResult> Logout()
+        {
+            var refreshToken = Request.Cookies[AuthCookieNames.RefreshToken];
+            if (!string.IsNullOrWhiteSpace(refreshToken))
+            {
+                await _authServiceClient.RevokeAsync(refreshToken);
+            }
+            ClearTokenCookies();
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             return RedirectToAction("Login");
         }
 

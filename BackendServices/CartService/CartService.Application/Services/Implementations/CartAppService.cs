@@ -42,19 +42,37 @@ namespace CartService.Application.Services.Implementations
             if (cartModel?.CartItems == null || cartModel.CartItems.Count == 0)
                 return cartModel;
 
-            // fetch product info once
+            // fetch product info once - fail gracefully if Catalog is unavailable
             var productIds = cart.CartItems.Select(x => x.ItemId).Distinct().ToArray();
-            var products = await _catalogServiceClient.GetByIdsAsync(productIds, ct);
-
-            foreach (var x in cartModel.CartItems)
+            try
             {
-                var p = products.FirstOrDefault(p => p.ProductId == x.ItemId);
-                if (p != null)
+                var products = await _catalogServiceClient.GetByIdsAsync(productIds, ct);
+
+                foreach (var x in cartModel.CartItems)
                 {
-                    x.Name = p.Name;
-                    x.ImageUrl = p.ImageUrl;
+                    var p = products.FirstOrDefault(p => p.ProductId == x.ItemId);
+                    if (p != null)
+                    {
+                        x.Name = p.Name;
+                        x.ImageUrl = p.ImageUrl;
+                    }
+                    else
+                    {
+                        var cartItem = cart.CartItems.FirstOrDefault(ci => ci.ItemId == x.ItemId);
+                        x.Name = cartItem?.ProductName ?? $"Product #{x.ItemId}";
+                    }
+                    cartModel.Total += x.UnitPrice * x.Quantity;
                 }
-                cartModel.Total += x.UnitPrice * x.Quantity;
+            }
+            catch (Exception)
+            {
+                // Catalog unavailable - use fallback
+                foreach (var x in cartModel.CartItems)
+                {
+                    var cartItem = cart.CartItems.FirstOrDefault(ci => ci.ItemId == x.ItemId);
+                    x.Name = cartItem?.ProductName ?? $"Product #{x.ItemId}";
+                    cartModel.Total += x.UnitPrice * x.Quantity;
+                }
             }
 
             // tax from config if totals aren't available
@@ -76,19 +94,39 @@ namespace CartService.Application.Services.Implementations
             var dto = _mapper.Map<CartDTO>(cart);
             dto.CartItems = _mapper.Map<List<CartItemDTO>>(snap.Items);
 
-            // Enrich items from Catalog
+            // Enrich items from Catalog - fail gracefully if Catalog is unavailable
             if (dto.CartItems?.Count > 0)
             {
                 var ids = snap.Items.Select(i => i.ItemId).Distinct().ToArray();
-                var products = await _catalogServiceClient.GetByIdsAsync(ids, ct);
-
-                foreach (var line in dto.CartItems)
+                try
                 {
-                    var p = products.FirstOrDefault(x => x.ProductId == line.ItemId);
-                    if (p != null)
+                    var products = await _catalogServiceClient.GetByIdsAsync(ids, ct);
+
+                    foreach (var line in dto.CartItems)
                     {
-                        line.Name = p.Name;
-                        line.ImageUrl = p.ImageUrl;
+                        var p = products.FirstOrDefault(x => x.ProductId == line.ItemId);
+                        if (p != null)
+                        {
+                            line.Name = p.Name;
+                            line.ImageUrl = p.ImageUrl;
+                        }
+                        else
+                        {
+                            // Fallback: use item data from snapshot if Catalog doesn't have the product
+                            var snapItem = snap.Items.FirstOrDefault(i => i.ItemId == line.ItemId);
+                            line.Name = snapItem?.ProductName ?? $"Product #{line.ItemId}";
+                            line.ImageUrl = null;
+                        }
+                    }
+                }
+                catch (Exception)
+                {
+                    // Catalog service unavailable - use fallback product names from snapshot
+                    foreach (var line in dto.CartItems)
+                    {
+                        var snapItem = snap.Items.FirstOrDefault(i => i.ItemId == line.ItemId);
+                        line.Name = snapItem?.ProductName ?? $"Product #{line.ItemId}";
+                        line.ImageUrl = null;
                     }
                 }
             }

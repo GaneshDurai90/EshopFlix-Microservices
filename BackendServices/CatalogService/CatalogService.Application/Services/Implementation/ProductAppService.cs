@@ -1,90 +1,46 @@
-﻿using AutoMapper;
-using CatalogService.Application.DTO;
-using CatalogService.Application.Repositories;
-using CatalogService.Application.Services.Abstractions;
-using CatalogService.Domain.Entities;
-using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using CatalogService.Application.CQRS;
+using CatalogService.Application.DTO;
+using CatalogService.Application.Products.Commands;
+using CatalogService.Application.Products.Queries;
+using CatalogService.Application.Services.Abstractions;
 
 namespace CatalogService.Application.Services.Implementation
 {
-    public class ProductAppService : IProductAppService
+    public sealed class ProductAppService : IProductAppService
     {
-        readonly IProductRepository _productRepository;
-        readonly IMapper _mapper;
-        readonly IConfiguration _configuration;
-        readonly string _imageServer;
-        public ProductAppService(IProductRepository productRepository ,IMapper mapper , IConfiguration configuration)
-        {
-            _productRepository = productRepository;
-            _mapper = mapper;
-            _configuration = configuration;
+        private readonly IDispatcher _dispatcher;
 
-            _imageServer = _configuration["ImageServer"];
-        }
-        public void Add(ProductDTO product)
+        public ProductAppService(IDispatcher dispatcher)
         {
-            Product entity =_mapper.Map<Product>(product);
-            _productRepository.Add(entity);
-            _productRepository.SaveChanges();
-          
+            _dispatcher = dispatcher;
         }
 
-        public void Delete(int id)
+        public async Task<ProductDetailDto> ChangeStatusAsync(ChangeProductStatusCommand command, CancellationToken ct = default)
+            => await _dispatcher.Send(command, ct);
+
+        public async Task<ProductDetailDto> CreateAsync(CreateProductCommand command, CancellationToken ct = default)
+            => await _dispatcher.Send(command, ct);
+
+        public async Task DeleteAsync(DeleteProductCommand command, CancellationToken ct = default)
         {
-            _productRepository.Delete(id);
+            await _dispatcher.Send(command, ct);
         }
 
-        public IEnumerable<ProductDTO> GetAll()
-        {
-          var products = _productRepository.GetAll();
-            if(products != null)
-            {
-                products = products.Select(p=>
-                {
-                   p.ImageUrl = $"{_imageServer}{p.ImageUrl}";
-                    return p;
-                });
-                return _mapper.Map<IEnumerable<ProductDTO>>(products);
-            }
-            return Enumerable.Empty<ProductDTO>();
-        }
+        public async Task<ProductDetailDto?> GetByIdAsync(int id, CancellationToken ct = default)
+            => await _dispatcher.Query(new GetProductByIdQuery { ProductId = id }, ct);
 
-        public ProductDTO GetById(int id)
-        {
-            var product = _productRepository.GetById(id);
-            if (product != null)
-            {
-                product.ImageUrl = $"{_imageServer}{product.ImageUrl}";
-                return _mapper.Map<ProductDTO>(product);
-            }
-            return null;
-        }
+        public async Task<IEnumerable<ProductDTO>> GetByIdsAsync(IEnumerable<int> ids, CancellationToken ct = default)
+            => await _dispatcher.Query(new GetProductsByIdsQuery { ProductIds = ids?.ToArray() ?? Array.Empty<int>() }, ct);
 
-        public IEnumerable<ProductDTO> GetByIds(int[] ids)
-        {
-            var products = _productRepository.GetByIds(ids);
-            if(products != null)
-            {
-                products = products.Select(p =>
-                {
-                    p.ImageUrl = $"{_imageServer}{p.ImageUrl}";
-                    return p;
-                });
-                return _mapper.Map<IEnumerable<ProductDTO>>(products);
-            }
-            return Enumerable.Empty<ProductDTO>();
-        }
+        public async Task<PagedResult<ProductListItemDto>> SearchAsync(SearchProductsQuery query, CancellationToken ct = default)
+            => await _dispatcher.Query(query, ct);
 
-        public void Update(ProductDTO product)
-        {
-           Product entity = _mapper.Map<Product>(product);
-            _productRepository.Update(entity);
-            _productRepository.SaveChanges();
-        }
+        public async Task<ProductDetailDto> UpdateAsync(UpdateProductCommand command, CancellationToken ct = default)
+            => await _dispatcher.Send(command, ct);
     }
 }

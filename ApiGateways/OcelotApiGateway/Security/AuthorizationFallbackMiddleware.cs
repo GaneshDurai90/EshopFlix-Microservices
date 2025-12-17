@@ -73,9 +73,50 @@ namespace OcelotApiGateway.Security
         // Minimal policy aligned to ocelot-dev.json: /product/* requires Admin role; others require authentication only
         private static bool EvaluatePolicy(HttpContext context, string routeKey)
         {
-            var requiresAdmin = routeKey.Contains("/product/");
-            if (!requiresAdmin) return true;
-            return context.User.IsInRole("Admin");
+            var requiredScope = ResolveScopeRequirement(context.Request);
+            if (requiredScope is null)
+            {
+                return true;
+            }
+
+            return context.User.HasClaim("scope", requiredScope) || context.User.IsInRole("Admin");
+        }
+
+        private static string? ResolveScopeRequirement(HttpRequest request)
+        {
+            var path = request.Path.Value?.ToLowerInvariant() ?? string.Empty;
+
+            if (path.StartsWith("/product"))
+            {
+                return "product.admin";
+            }
+
+            if (path.StartsWith("/cart"))
+            {
+                return HttpMethods.IsGet(request.Method) ? "cart.read" : "cart.write";
+            }
+
+            if (path.StartsWith("/order"))
+            {
+                return HttpMethods.IsGet(request.Method) ? "order.read" : "order.write";
+            }
+
+            if (path.StartsWith("/payment"))
+            {
+                return "payment.execute";
+            }
+
+            if (path.StartsWith("/shipping"))
+            {
+                return HttpMethods.IsGet(request.Method) ? "shipping.read" : "shipping.write";
+            }
+
+            if (path.StartsWith("/admin"))
+            {
+                return "admin.portal";
+            }
+
+            return null;
         }
     }
 }

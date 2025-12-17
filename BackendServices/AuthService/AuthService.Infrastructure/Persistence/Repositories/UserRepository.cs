@@ -21,6 +21,11 @@ namespace AuthService.Infrastructure.Persistence.Repositories
             return _db.Users.Include(u => u.Roles).FirstOrDefault(u => u.Email == email);
         }
 
+        public User GetUserById(int id)
+        {
+            return _db.Users.Include(u => u.Roles).FirstOrDefault(u => u.Id == id);
+        }
+
         public bool RegisterUser(User user, string role)
         {
             Role existingRole = _db.Roles.FirstOrDefault(r => r.Name == role);

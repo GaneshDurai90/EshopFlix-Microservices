@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using CatalogService.Domain.Entities;
+using CatalogService.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
 namespace CatalogService.Infrastructure.Persistence;
@@ -14,24 +15,432 @@ public partial class CatalogServiceDbContext : DbContext
     {
     }
 
+    public virtual DbSet<Brand> Brands { get; set; }
+
+    public virtual DbSet<BulkImportItem> BulkImportItems { get; set; }
+
+    public virtual DbSet<BulkImportJob> BulkImportJobs { get; set; }
+
     public virtual DbSet<Category> Categories { get; set; }
+
+    public virtual DbSet<Inbox> Inboxes { get; set; }
+
+    public virtual DbSet<InventorySnapshot> InventorySnapshots { get; set; }
+
+    public virtual DbSet<Manufacturer> Manufacturers { get; set; }
+
+    public virtual DbSet<Outbox> Outboxes { get; set; }
+
+    public virtual DbSet<PriceHistory> PriceHistories { get; set; }
 
     public virtual DbSet<Product> Products { get; set; }
 
+    public virtual DbSet<ProductAttribute> ProductAttributes { get; set; }
+
+    public virtual DbSet<ProductImage> ProductImages { get; set; }
+
+    public virtual DbSet<ProductRelationship> ProductRelationships { get; set; }
+
+    public virtual DbSet<ProductReview> ProductReviews { get; set; }
+
+    public virtual DbSet<ProductVariant> ProductVariants { get; set; }
+
+    public virtual DbSet<Promotion> Promotions { get; set; }
+
+    public virtual DbSet<Tag> Tags { get; set; }
+
+    public virtual DbSet<VwProductSearch> VwProductSearches { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Brand>(entity =>
+        {
+            entity.HasKey(e => e.BrandId).HasName("PK__Brands__DAD4F05E19D33556");
+
+            entity.HasIndex(e => e.Name, "IX_Brands_Name");
+
+            entity.HasIndex(e => e.Slug, "UQ_Brands_Slug").IsUnique();
+
+            entity.Property(e => e.CreatedDate).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Description).HasMaxLength(1000);
+            entity.Property(e => e.Name)
+                .IsRequired()
+                .HasMaxLength(200);
+            entity.Property(e => e.Slug)
+                .IsRequired()
+                .HasMaxLength(200);
+        });
+
+        modelBuilder.Entity<BulkImportItem>(entity =>
+        {
+            entity.HasKey(e => e.ItemId).HasName("PK__BulkImpo__727E838BA9AC5D3A");
+
+            entity.ToTable("BulkImportItem");
+
+            entity.Property(e => e.ErrorMessage).HasMaxLength(2000);
+
+            entity.HasOne(d => d.Job).WithMany(p => p.BulkImportItems)
+                .HasForeignKey(d => d.JobId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_BulkImportItem_Job");
+        });
+
+        modelBuilder.Entity<BulkImportJob>(entity =>
+        {
+            entity.HasKey(e => e.JobId).HasName("PK__BulkImpo__056690C29CF515E5");
+
+            entity.ToTable("BulkImportJob");
+
+            entity.Property(e => e.CreatedDate).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.FileName)
+                .IsRequired()
+                .HasMaxLength(500);
+        });
+
         modelBuilder.Entity<Category>(entity =>
         {
-            entity.Property(e => e.Name).IsRequired();
+            entity.HasKey(e => e.CategoryId).HasName("PK__Categori__19093A0B07E58AB9");
+
+            entity.HasIndex(e => e.IsActive, "IX_Categories_IsActive");
+
+            entity.HasIndex(e => e.Name, "IX_Categories_Name");
+
+            entity.HasIndex(e => e.Slug, "UQ_Categories_Slug").IsUnique();
+
+            entity.Property(e => e.CreatedBy).HasMaxLength(100);
+            entity.Property(e => e.CreatedDate).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Description).HasMaxLength(1000);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.LastModifiedBy).HasMaxLength(100);
+            entity.Property(e => e.Name)
+                .IsRequired()
+                .HasMaxLength(200);
+            entity.Property(e => e.Slug)
+                .IsRequired()
+                .HasMaxLength(200);
+
+            entity.HasOne(d => d.ParentCategory).WithMany(p => p.InverseParentCategory)
+                .HasForeignKey(d => d.ParentCategoryId)
+                .HasConstraintName("FK_Categories_Parent");
+        });
+
+        modelBuilder.Entity<Inbox>(entity =>
+        {
+            entity.HasKey(e => e.InboxId).HasName("PK__Inbox__61A99C6CE6B1C828");
+
+            entity.ToTable("Inbox");
+
+            entity.HasIndex(e => e.MessageId, "UQ_Inbox_MessageId").IsUnique();
+
+            entity.Property(e => e.Handler).HasMaxLength(200);
+            entity.Property(e => e.MessageId)
+                .IsRequired()
+                .HasMaxLength(200);
+            entity.Property(e => e.ProcessedOn).HasDefaultValueSql("(sysutcdatetime())");
+        });
+
+        modelBuilder.Entity<InventorySnapshot>(entity =>
+        {
+            entity.HasKey(e => e.SnapshotId).HasName("PK__Inventor__664F572B1E8FC1A8");
+
+            entity.HasIndex(e => e.SkuId, "IX_InventorySnapshots_SkuId");
+
+            entity.Property(e => e.LastUpdated).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.WarehouseId).HasMaxLength(50);
+
+            entity.HasOne(d => d.Sku).WithMany(p => p.InventorySnapshots)
+                .HasForeignKey(d => d.SkuId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_InventorySnapshots_Variant");
+        });
+
+        modelBuilder.Entity<Manufacturer>(entity =>
+        {
+            entity.HasKey(e => e.ManufacturerId).HasName("PK__Manufact__357E5CC1EE8D76B6");
+
+            entity.HasIndex(e => e.Name, "IX_Manufacturers_Name");
+
+            entity.Property(e => e.ContactInfo).HasMaxLength(1000);
+            entity.Property(e => e.Name)
+                .IsRequired()
+                .HasMaxLength(200);
+        });
+
+        modelBuilder.Entity<Outbox>(entity =>
+        {
+            entity.HasKey(e => e.OutboxId).HasName("PK__Outbox__0903AF486B319B12");
+
+            entity.ToTable("Outbox");
+
+            entity.HasIndex(e => e.OccurredOn, "IX_Outbox_OccurredOn");
+
+            entity.HasIndex(e => e.Processed, "IX_Outbox_Processed");
+
+            entity.Property(e => e.CorrelationId).HasMaxLength(100);
+            entity.Property(e => e.EventType)
+                .IsRequired()
+                .HasMaxLength(250);
+            entity.Property(e => e.OccurredOn).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Payload).IsRequired();
+        });
+
+        modelBuilder.Entity<PriceHistory>(entity =>
+        {
+            entity.HasKey(e => e.PriceHistoryId).HasName("PK__PriceHis__A927CACB375DE797");
+
+            entity.ToTable("PriceHistory");
+
+            entity.HasIndex(e => e.ProductId, "IX_PriceHistory_Product");
+
+            entity.HasIndex(e => e.SkuId, "IX_PriceHistory_Sku");
+
+            entity.Property(e => e.ChangedBy).HasMaxLength(200);
+            entity.Property(e => e.ChangedDate).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Currency)
+                .IsRequired()
+                .HasMaxLength(10)
+                .HasDefaultValue("USD");
+            entity.Property(e => e.NewPrice).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.OldPrice).HasColumnType("decimal(18, 2)");
         });
 
         modelBuilder.Entity<Product>(entity =>
         {
-            entity.Property(e => e.Description).IsRequired();
-            entity.Property(e => e.Name).IsRequired();
+            entity.HasKey(e => e.ProductId).HasName("PK__Products__B40CC6CD76A88D32");
+
+            entity.HasIndex(e => e.CategoryId, "IX_Products_CategoryId");
+
+            entity.HasIndex(e => e.Name, "IX_Products_Name");
+
+            entity.HasIndex(e => e.Status, "IX_Products_Status");
+
+            entity.HasIndex(e => e.Slug, "UQ_Products_Slug").IsUnique();
+
+            entity.Property(e => e.CreatedBy).HasMaxLength(100);
+            entity.Property(e => e.CreatedDate).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Dimensions).HasMaxLength(200);
+            entity.Property(e => e.IsSearchable).HasDefaultValue(true);
+            entity.Property(e => e.LastModifiedBy).HasMaxLength(100);
+            entity.Property(e => e.Name)
+                .IsRequired()
+                .HasMaxLength(250);
+            entity.Property(e => e.PrimaryImageUrl)
+                .HasMaxLength(1000);
+            entity.Property(e => e.SeoDescription).HasMaxLength(500);
+            entity.Property(e => e.SeoKeywords).HasMaxLength(500);
+            entity.Property(e => e.SeoTitle).HasMaxLength(250);
+            entity.Property(e => e.ShortDescription).HasMaxLength(1000);
+            entity.Property(e => e.Slug)
+                .IsRequired()
+                .HasMaxLength(250);
+            entity.Property(e => e.Weight).HasColumnType("decimal(9, 3)");
+
+            entity.HasOne(d => d.Brand).WithMany(p => p.Products)
+                .HasForeignKey(d => d.BrandId)
+                .HasConstraintName("FK_Products_Brand");
+
+            entity.HasOne(d => d.Category).WithMany(p => p.Products)
+                .HasForeignKey(d => d.CategoryId)
+                .HasConstraintName("FK_Products_Category");
+
+            entity.HasOne(d => d.Manufacturer).WithMany(p => p.Products)
+                .HasForeignKey(d => d.ManufacturerId)
+                .HasConstraintName("FK_Products_Manufacturer");
+
+            entity.HasMany(d => d.Promotions).WithMany(p => p.Products)
+                .UsingEntity<Dictionary<string, object>>(
+                    "ProductPromotion",
+                    r => r.HasOne<Promotion>().WithMany()
+                        .HasForeignKey("PromotionId")
+                        .OnDelete(DeleteBehavior.ClientSetNull)
+                        .HasConstraintName("FK_ProductPromotions_Promotion"),
+                    l => l.HasOne<Product>().WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.ClientSetNull)
+                        .HasConstraintName("FK_ProductPromotions_Product"),
+                    j =>
+                    {
+                        j.HasKey("ProductId", "PromotionId");
+                        j.ToTable("ProductPromotions");
+                    });
+
+            entity.HasMany(d => d.Tags).WithMany(p => p.Products)
+                .UsingEntity<Dictionary<string, object>>(
+                    "ProductTag",
+                    r => r.HasOne<Tag>().WithMany()
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.ClientSetNull)
+                        .HasConstraintName("FK_ProductTags_Tag"),
+                    l => l.HasOne<Product>().WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.ClientSetNull)
+                        .HasConstraintName("FK_ProductTags_Product"),
+                    j =>
+                    {
+                        j.HasKey("ProductId", "TagId");
+                        j.ToTable("ProductTags");
+                    });
+        });
+
+        modelBuilder.Entity<ProductAttribute>(entity =>
+        {
+            entity.HasKey(e => e.ProductAttributeId).HasName("PK__ProductA__00CE67475C0FF437");
+
+            entity.HasIndex(e => e.Key, "IX_ProductAttributes_Key");
+
+            entity.HasIndex(e => e.ProductId, "IX_ProductAttributes_ProductId");
+
+            entity.Property(e => e.Key)
+                .IsRequired()
+                .HasMaxLength(200);
+            entity.Property(e => e.ValueNumber).HasColumnType("decimal(18, 4)");
+            entity.Property(e => e.ValueString).HasMaxLength(1000);
+
+            entity.HasOne(d => d.Product).WithMany(p => p.ProductAttributes)
+                .HasForeignKey(d => d.ProductId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductAttributes_Product");
+        });
+
+        modelBuilder.Entity<ProductImage>(entity =>
+        {
+            entity.HasKey(e => e.ProductImageId).HasName("PK__ProductI__07B2B1B821FC8268");
+
+            entity.HasIndex(e => e.ProductId, "IX_ProductImages_ProductId");
+
+            entity.Property(e => e.AltText).HasMaxLength(500);
+            entity.Property(e => e.CreatedDate).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Url)
+                .IsRequired()
+                .HasMaxLength(1000);
+
+            entity.HasOne(d => d.Product).WithMany(p => p.ProductImages)
+                .HasForeignKey(d => d.ProductId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductImages_Product");
+
+            entity.HasOne(d => d.Sku).WithMany(p => p.ProductImages)
+                .HasForeignKey(d => d.SkuId)
+                .HasConstraintName("FK_ProductImages_Variant");
+        });
+
+        modelBuilder.Entity<ProductRelationship>(entity =>
+        {
+            entity.HasKey(e => new { e.ParentProductId, e.RelatedProductId });
+
+            entity.HasOne(d => d.ParentProduct).WithMany(p => p.ProductRelationshipParentProducts)
+                .HasForeignKey(d => d.ParentProductId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductRelationships_Parent");
+
+            entity.HasOne(d => d.RelatedProduct).WithMany(p => p.ProductRelationshipRelatedProducts)
+                .HasForeignKey(d => d.RelatedProductId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductRelationships_Related");
+        });
+
+        modelBuilder.Entity<ProductReview>(entity =>
+        {
+            entity.HasKey(e => e.ReviewId).HasName("PK__ProductR__74BC79CE5B6F38EA");
+
+            entity.HasIndex(e => e.ProductId, "IX_ProductReviews_ProductId");
+
+            entity.Property(e => e.CreatedDate).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Title).HasMaxLength(250);
+            entity.Property(e => e.UserId).HasMaxLength(100);
+
+            entity.HasOne(d => d.Product).WithMany(p => p.ProductReviews)
+                .HasForeignKey(d => d.ProductId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductReviews_Product");
+        });
+
+        modelBuilder.Entity<ProductVariant>(entity =>
+        {
+            entity.HasKey(e => e.SkuId).HasName("PK__ProductV__AED6CBD59E5BC1D6");
+
+            entity.HasIndex(e => e.ProductId, "IX_ProductVariants_ProductId");
+
+            entity.HasIndex(e => e.UnitPrice, "IX_ProductVariants_UnitPrice");
+
+            entity.HasIndex(e => e.Sku, "UQ_ProductVariants_Sku").IsUnique();
+
+            entity.Property(e => e.Attributes).HasMaxLength(2000);
+            entity.Property(e => e.Barcode).HasMaxLength(100);
+            entity.Property(e => e.CompareAtPrice).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.CostPrice).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.CreatedDate).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Currency)
+                .IsRequired()
+                .HasMaxLength(10)
+                .HasDefaultValue("USD");
+            entity.Property(e => e.Sku)
+                .IsRequired()
+                .HasMaxLength(100);
             entity.Property(e => e.UnitPrice).HasColumnType("decimal(18, 2)");
 
-            entity.HasOne(d => d.Category).WithMany(p => p.Products).HasForeignKey(d => d.CategoryId);
+            entity.HasOne(d => d.Product).WithMany(p => p.ProductVariants)
+                .HasForeignKey(d => d.ProductId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_ProductVariants_Product");
+        });
+
+        modelBuilder.Entity<Promotion>(entity =>
+        {
+            entity.HasKey(e => e.PromotionId).HasName("PK__Promotio__52C42FCF343E6D32");
+
+            entity.HasIndex(e => e.Code, "IX_Promotions_Code");
+
+            entity.HasIndex(e => e.StartDate, "IX_Promotions_StartDate");
+
+            entity.Property(e => e.Code).HasMaxLength(50);
+            entity.Property(e => e.CreatedDate).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Description).HasMaxLength(1000);
+            entity.Property(e => e.DiscountValue).HasColumnType("decimal(18, 4)");
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.Name)
+                .IsRequired()
+                .HasMaxLength(250);
+        });
+
+        modelBuilder.Entity<Tag>(entity =>
+        {
+            entity.HasKey(e => e.TagId).HasName("PK__Tags__657CF9AC1A808A4F");
+
+            entity.HasIndex(e => e.Name, "IX_Tags_Name");
+
+            entity.HasIndex(e => e.Slug, "UQ_Tags_Slug").IsUnique();
+
+            entity.Property(e => e.Name)
+                .IsRequired()
+                .HasMaxLength(200);
+            entity.Property(e => e.Slug)
+                .IsRequired()
+                .HasMaxLength(200);
+        });
+
+        modelBuilder.Entity<VwProductSearch>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("vw_ProductSearch");
+
+            entity.Property(e => e.BrandName).HasMaxLength(200);
+            entity.Property(e => e.CategoryName).HasMaxLength(200);
+            entity.Property(e => e.Currency).HasMaxLength(10);
+            entity.Property(e => e.Name)
+                .IsRequired()
+                .HasMaxLength(250);
+            entity.Property(e => e.PrimaryImageUrl).HasMaxLength(1000);
+            entity.Property(e => e.SeoDescription).HasMaxLength(500);
+            entity.Property(e => e.SeoKeywords).HasMaxLength(500);
+            entity.Property(e => e.SeoTitle).HasMaxLength(250);
+            entity.Property(e => e.ShortDescription).HasMaxLength(1000);
+            entity.Property(e => e.Sku).HasMaxLength(100);
+            entity.Property(e => e.Slug)
+                .IsRequired()
+                .HasMaxLength(250);
+            entity.Property(e => e.UnitPrice).HasColumnType("decimal(18, 2)");
         });
 
         OnModelCreatingPartial(modelBuilder);

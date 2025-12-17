@@ -1,6 +1,6 @@
 ﻿{
    "CodeGenerationMode": 4,
-   "ContextClassName": "AuthServiceContext",
+   "ContextClassName": "AuthServiceDbContext",
    "ContextNamespace": null,
    "FilterSchemas": false,
    "IncludeConnectionString": false,
@@ -15,6 +15,10 @@
    "SelectedToBeGenerated": 2,
    "T4TemplatePath": null,
    "Tables": [
+      {
+         "Name": "[dbo].[RefreshTokens]",
+         "ObjectType": 0
+      },
       {
          "Name": "[dbo].[Roles]",
          "ObjectType": 0

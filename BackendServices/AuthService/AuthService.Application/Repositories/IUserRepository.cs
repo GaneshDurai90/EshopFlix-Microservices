@@ -12,5 +12,6 @@ namespace AuthService.Application.Repositories
         bool RegisterUser(User user, string role);
         IEnumerable<User> GetAll();
         User GetUserByEmail(string email);
+        User GetUserById(int id);
     }
 }

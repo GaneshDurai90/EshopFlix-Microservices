@@ -1,0 +1,173 @@
+@model eShopFlix.Web.Models.ProductDetailsViewModel
+@{
+    var product = Model?.Product;
+    ViewData["Title"] = product?.Name ?? "Product";
+}
+
+@if (product is null)
+{
+    <div class="alert alert-warning">Product not found.</div>
+    return;
+}
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card shadow-sm">
+            <img class="card-img-top object-fit-cover" style="height:360px" src="@product.PrimaryImageUrl" alt="@product.Name" />
+            <div class="card-body">
+                <span class="badge bg-light text-uppercase text-muted mb-2">Product #@product.ProductId</span>
+                <h3 class="card-title">@product.Name</h3>
+                <p class="text-muted">@product.ShortDescription ?? product.LongDescription</p>
+                <dl class="row small">
+                    <dt class="col-sm-4">Status</dt>
+                    <dd class="col-sm-8">@product.Status</dd>
+                    <dt class="col-sm-4">Weight</dt>
+                    <dd class="col-sm-8">@(product.Weight?.ToString("N2") ?? "--")</dd>
+                    <dt class="col-sm-4">Dimensions</dt>
+                    <dd class="col-sm-8">@(!string.IsNullOrWhiteSpace(product.Dimensions) ? product.Dimensions : "--")</dd>
+                    <dt class="col-sm-4">SEO Title</dt>
+                    <dd class="col-sm-8">@product.SeoTitle</dd>
+                </dl>
+                <div class="d-flex gap-2">
+                    <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary">Back</a>
+                    @{
+                        var primaryVariant = Model?.Variants?.FirstOrDefault(v => v.IsDefault) ?? Model?.Variants?.FirstOrDefault();
+                        var primaryPrice = primaryVariant?.UnitPrice.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+                        if (CurrentUser != null && primaryVariant != null)
+                        {
+                            <button class="btn btn-primary" onclick="addToCart('@product.ProductId','@product.Name','@primaryPrice',1)">Add to Cart</button>
+                        }
+                        else if (CurrentUser == null)
+                        {
+                            <a href="/Account/Login?returnUrl=@Url.Action("Details", new { id = product.ProductId })" class="btn btn-primary">Sign in to purchase</a>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Variants & Pricing</h5>
+                <span class="text-muted small">@Model?.Variants?.Count() ?? 0 variants</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead>
+                        <tr>
+                            <th>SKU</th>
+                            <th>Price</th>
+                            <th>Currency</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model?.Variants?.Any() == true)
+                        {
+                            foreach (var variant in Model.Variants)
+                            {
+                                var variantPrice = variant.UnitPrice.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+                                <tr>
+                                    <td>@variant.Sku</td>
+                                    <td>?@variant.UnitPrice.ToString("N2")</td>
+                                    <td>@variant.Currency</td>
+                                    <td>
+                                        @if (CurrentUser != null)
+                                        {
+                                            <button class="btn btn-sm btn-outline-primary" onclick="addToCart('@product.ProductId','@product.Name','@variantPrice',1)">Add</button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="4" class="text-muted">No variants configured.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Recent Price Changes</h5>
+            </div>
+            <div class="list-group list-group-flush">
+                @if (Model?.PriceHistory?.Any() == true)
+                {
+                    foreach (var entry in Model.PriceHistory)
+                    {
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="fw-semibold">?@entry.NewPrice.ToString("N2")</div>
+                                <small class="text-muted">Changed by @entry.ChangedBy on @entry.ChangedDate.ToString("dd MMM yyyy")</small>
+                            </div>
+                            @if (entry.OldPrice.HasValue)
+                            {
+                                <span class="text-muted small">Prev: ?@entry.OldPrice.Value.ToString("N2")</span>
+                            }
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="list-group-item text-muted">No price history.</div>
+                }
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">Customer Reviews</h5>
+                <span class="badge bg-secondary">@Model?.Reviews?.Count() ?? 0</span>
+            </div>
+            <div class="list-group list-group-flush">
+                @if (Model?.Reviews?.Any() == true)
+                {
+                    foreach (var review in Model.Reviews)
+                    {
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between">
+                                <div class="fw-semibold">@review.Title ?? "Rating"</div>
+                                <div class="text-warning">@(new string('?', review.Rating))</div>
+                            </div>
+                            <small class="text-muted">@review.UserId on @review.CreatedDate.ToString("dd MMM yyyy")</small>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="list-group-item text-muted">No reviews yet.</div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Model?.ActivePromotions?.Any() == true)
+{
+    <div class="mt-4">
+        <h5 class="text-uppercase text-muted small">Eligible Promotions</h5>
+        <div class="row row-cols-1 row-cols-md-3 g-3">
+            @foreach (var promo in Model.ActivePromotions)
+            {
+                <div class="col">
+                    <div class="card border-success h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <span class="badge bg-success">@promo.Code</span>
+                                <small class="text-muted">@promo.EndDate.ToString("dd MMM")</small>
+                            </div>
+                            <h6 class="mt-2">@promo.Name</h6>
+                            <p class="small text-muted mb-0">@promo.Description ?? "Automatically applied at checkout"</p>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}

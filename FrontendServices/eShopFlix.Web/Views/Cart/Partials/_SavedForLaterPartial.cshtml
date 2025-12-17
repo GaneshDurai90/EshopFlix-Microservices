@@ -10,9 +10,9 @@
             <li class="list-group-item d-flex justify-content-between align-items-center">
                 <div>
                     <div><strong>@s.ProductName</strong> (SKU: @s.Sku)</div>
-                    <div>Qty: @s.Quantity | Price: ?@s.UnitPrice.ToString("##.#")</div>
+                    <div>Qty: @s.Quantity | Price: ?@s.UnitPrice.ToString("N2")</div>
                 </div>
-                <button class="btn btn-sm btn-link" onclick="moveSavedToCart(@s.Id)">Move to cart</button>
+                <button class="btn btn-sm btn-link" onclick="moveToCart(@s.Id, @cartId)">Move to cart</button>
             </li>
         }
     </ul>

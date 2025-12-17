@@ -269,10 +269,20 @@ namespace CartService.Infrastructure.Persistence.Repositories
         // Gets the total count of items in the user's active cart.
         public async Task<int> GetCartItemCount(long UserId)
         {
-            var cart = await _db.Carts
-                                .Include(c => c.CartItems)
-                                .FirstOrDefaultAsync(c => c.UserId == UserId && c.IsActive);
-            return cart?.CartItems.Sum(c => c.Quantity) ?? 0;
+            var cartId = await _db.Carts
+                                  .Where(c => c.UserId == UserId && c.IsActive)
+                                  .Select(c => (long?)c.Id)
+                                  .FirstOrDefaultAsync();
+
+            if (!cartId.HasValue)
+                return 0;
+
+            // Always count actual items - this is the source of truth
+            var itemCount = await _db.CartItems
+                                     .Where(ci => ci.CartId == cartId.Value)
+                                     .SumAsync(ci => (int?)ci.Quantity);
+
+            return itemCount ?? 0;
         }
 
         // Retrieves all items in a cart by CartId.

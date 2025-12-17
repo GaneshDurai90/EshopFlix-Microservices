@@ -21,6 +21,36 @@
       "DelegatingHandlers": [ "OcelotApiGateway.Resilience.DownstreamResilienceHandler, OcelotApiGateway" ]
     },
     {
+      "DownstreamPathTemplate": "/api/products/{everything}",
+      "DownstreamScheme": "https",
+      "DownstreamHostAndPorts": [
+        { "Host": "localhost", "Port": 7159 }
+      ],
+      "UpstreamPathTemplate": "/products/{everything}",
+      "UpstreamHttpMethod": [ "GET" ],
+      "DelegatingHandlers": [ "OcelotApiGateway.Resilience.DownstreamResilienceHandler, OcelotApiGateway" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/pricehistory/{everything}",
+      "DownstreamScheme": "https",
+      "DownstreamHostAndPorts": [
+        { "Host": "localhost", "Port": 7159 }
+      ],
+      "UpstreamPathTemplate": "/pricehistory/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST" ],
+      "DelegatingHandlers": [ "OcelotApiGateway.Resilience.DownstreamResilienceHandler, OcelotApiGateway" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/promotion/{everything}",
+      "DownstreamScheme": "https",
+      "DownstreamHostAndPorts": [
+        { "Host": "localhost", "Port": 7159 }
+      ],
+      "UpstreamPathTemplate": "/promotion/{everything}",
+      "UpstreamHttpMethod": [ "GET" ],
+      "DelegatingHandlers": [ "OcelotApiGateway.Resilience.DownstreamResilienceHandler, OcelotApiGateway" ]
+    },
+    {
       "DownstreamPathTemplate": "/api/product/{everything}",
       "DownstreamScheme": "https",
       "DownstreamHostAndPorts": [

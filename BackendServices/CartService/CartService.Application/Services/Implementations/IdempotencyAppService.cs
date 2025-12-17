@@ -14,6 +14,9 @@ namespace CartService.Application.Services.Implementations
             PropertyNameCaseInsensitive = true
         };
 
+        private static readonly TimeSpan DefaultTtl = TimeSpan.FromMinutes(15);
+        private static readonly TimeSpan DefaultLockDuration = TimeSpan.FromSeconds(30);
+
         private readonly IIdempotentAppRequest _req;
 
         public IdempotencyAppService(IIdempotentAppRequest req) => _req = req;
@@ -27,74 +30,71 @@ namespace CartService.Application.Services.Implementations
             CancellationToken ct = default)
         {
             var now = DateTime.UtcNow;
+            var effectiveTtl = ttl ?? DefaultTtl;
+            var lockDeadline = now.Add(DefaultLockDuration);
+            var expiresOn = now + effectiveTtl;
 
             // Return completed result if present and not expired
             var existing = await _req.FindAsync(key, userId, ct);
-            if (existing is not null &&
-                existing.ResponseBody is not null &&
-                (existing.ExpiresOn is null || existing.ExpiresOn > now))
+            if (existing is not null)
             {
-                var restored = JsonSerializer.Deserialize<T>(existing.ResponseBody, JsonOptions);
-                if (restored is null)
+                if (existing.ResponseBody is not null &&
+                    (existing.ExpiresOn is null || existing.ExpiresOn > now))
                 {
-                    throw AppException.Business("request.idempotency.deserialize",
-                        "Stored idempotent response cannot be deserialized to the expected type.");
+                    return DeserializeResult<T>(existing.ResponseBody);
                 }
 
-                return restored;
+                EnsureHashConsistency(existing.RequestHash, requestHash);
             }
 
-            // Create the record (unique on Key + UserId)
-            var record = new IdempotentRequest
-            {
-                Key = key,
-                UserId = userId,
-                RequestHash = requestHash,
-                LockedUntil = now.AddSeconds(30),
-                ExpiresOn = ttl is null ? now.AddMinutes(15) : now + ttl.Value
-            };
+            IdempotentRequest? record = null;
 
-            var inserted = await _req.TryCreateAsync(record, ct);
-            if (!inserted)
+            if (existing is null)
             {
-                // Another request already created this key; verify hash and reuse result if available
-                existing = await _req.FindAsync(key, userId, ct);
-                if (existing is not null)
+                var candidate = new IdempotentRequest
                 {
-                    // Reject different payloads under the same key if both sides provided a hash
-                    if (existing.RequestHash is not null && requestHash is not null &&
-                        !string.Equals(existing.RequestHash, requestHash, StringComparison.Ordinal))
-                    {
-                        throw AppException.Business("request.idempotency.hash.mismatch",
-                            "A different request with the same idempotency key was already processed.");
-                    }
+                    Key = key,
+                    UserId = userId,
+                    RequestHash = requestHash,
+                    LockedUntil = lockDeadline,
+                    ExpiresOn = expiresOn
+                };
 
-                    if (existing.ResponseBody is not null)
-                    {
-                        var restored = JsonSerializer.Deserialize<T>(existing.ResponseBody, JsonOptions);
-                        if (restored is null)
-                        {
-                            throw AppException.Business("request.idempotency.deserialize",
-                                "Stored idempotent response cannot be deserialized to the expected type.");
-                        }
+                if (await _req.TryCreateAsync(candidate, ct))
+                {
+                    record = candidate.Id != 0
+                        ? candidate
+                        : await _req.FindAsync(key, userId, ct);
+                }
+            }
 
-                        return restored;
-                    }
+            if (record is null)
+            {
+                var locked = await _req.TryAcquireLockAsync(key, userId, now, lockDeadline, expiresOn, requestHash, ct);
+                if (locked is null)
+                {
+                    throw AppException.Business("request.inprogress", "The request is already being processed. Retry later.");
                 }
 
-                // Still in-flight elsewhere
-                throw AppException.Business("request.inprogress", "The request is already being processed. Retry later.");
+                record = locked;
             }
 
-            // Execute the action; leave ResponseBody null on failures so a retry can re-run
-            var result = await action(ct);
+            record.ExpiresOn ??= expiresOn;
 
-            record.ResponseBody = JsonSerializer.Serialize(result);
-            record.StatusCode = 200;
-            record.LockedUntil = null;
+            // Execute the action; clear lock on failure so retries can proceed
+            try
+            {
+                var result = await action(ct);
+                var serialized = JsonSerializer.Serialize(result, JsonOptions);
 
-            await _req.PersistResponseAsync(record, ct);
-            return result;
+                await _req.PersistResponseAsync(record.Id, serialized, 200, record.ExpiresOn, ct);
+                return result;
+            }
+            catch
+            {
+                await _req.ReleaseLockAsync(record.Id, ct);
+                throw;
+            }
         }
 
         // Optional helper for deterministic keys
@@ -103,6 +103,23 @@ namespace CartService.Application.Services.Implementations
             using var sha = SHA256.Create();
             var bytes = sha.ComputeHash(Encoding.UTF8.GetBytes(route + "|" + body));
             return Convert.ToBase64String(bytes);
+        }
+
+        private static T DeserializeResult<T>(string responseBody)
+        {
+            var restored = JsonSerializer.Deserialize<T>(responseBody, JsonOptions);
+            return restored ?? throw AppException.Business("request.idempotency.deserialize",
+                "Stored idempotent response cannot be deserialized to the expected type.");
+        }
+
+        private static void EnsureHashConsistency(string? storedHash, string? incomingHash)
+        {
+            if (storedHash is not null && incomingHash is not null &&
+                !string.Equals(storedHash, incomingHash, StringComparison.Ordinal))
+            {
+                throw AppException.Business("request.idempotency.hash.mismatch",
+                    "A different request with the same idempotency key was already processed.");
+            }
         }
     }
 }

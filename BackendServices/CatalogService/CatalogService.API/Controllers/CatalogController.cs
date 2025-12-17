@@ -1,5 +1,15 @@
-﻿using CatalogService.Application.Services.Abstractions;
+﻿using CatalogService.API.Contracts;
+using CatalogService.Application.DTO;
+using CatalogService.Application.Exceptions;
+using CatalogService.Application.Products.Queries;
+using CatalogService.Application.Services.Abstractions;
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace CatalogService.API.Controllers
 {
@@ -7,44 +17,78 @@ namespace CatalogService.API.Controllers
     [ApiController]
     public class CatalogController : ControllerBase
     {
-        IProductAppService _productAppService;
-        public CatalogController(IProductAppService productAppService)
+        private readonly IProductAppService _productService;
+        private readonly IValidator<GetProductsByIdsRequest> _getByIdsValidator;
+
+        public CatalogController(
+            IProductAppService productService,
+            IValidator<GetProductsByIdsRequest> getByIdsValidator)
         {
-            _productAppService = productAppService;
+            _productService = productService;
+            _getByIdsValidator = getByIdsValidator;
         }
 
         [HttpGet]
-        public IActionResult GetAll()
+        public async Task<IActionResult> GetAll(CancellationToken ct)
         {
-            var products = _productAppService.GetAll();
-            if (products != null && products.Any())
+            var result = await _productService.SearchAsync(new SearchProductsQuery
             {
-                return Ok(products);
-            }
-            return NotFound("No products found.");
+                Page = 1,
+                PageSize = 500
+            }, ct);
+
+            return Ok(result.Items ?? Enumerable.Empty<ProductListItemDto>());
         }
 
-        [HttpGet("{id}")]
-        public IActionResult GetById(int id)
+        [HttpGet("{id:int}")]
+        public async Task<IActionResult> GetById(int id, CancellationToken ct)
         {
-            var product = _productAppService.GetById(id);
-            if (product != null)
+            if (id <= 0)
             {
-                return Ok(product);
+                throw AppException.Validation(new Dictionary<string, string[]>
+                {
+                    ["id"] = new[] { "Id must be greater than zero." }
+                });
             }
-            return NotFound($"Product with ID {id} not found.");
+
+            var product = await _productService.GetByIdAsync(id, ct);
+            if (product is null)
+            {
+                throw AppException.NotFound("product", $"Product with ID {id} not found.");
+            }
+
+            return Ok(product);
         }
 
         [HttpPost]
-        public IActionResult GetByIds(int[] ids)
+        public async Task<IActionResult> GetByIds([FromBody] GetProductsByIdsRequest request, CancellationToken ct)
         {
-            var products = _productAppService.GetByIds(ids);
-            if (products != null && products.Any())
+            if (request is null)
             {
-                return Ok(products);
+                throw AppException.Validation(new Dictionary<string, string[]>
+                {
+                    ["body"] = new[] { "Request payload is required." }
+                });
             }
-            return NotFound("No products found for the provided IDs.");
+
+            var validation = _getByIdsValidator.Validate(request);
+            if (!validation.IsValid)
+            {
+                throw AppException.Validation(ToErrorDictionary(validation));
+            }
+
+            var products = await _productService.GetByIdsAsync(request.Ids ?? Array.Empty<int>(), ct);
+
+            return Ok(products ?? Enumerable.Empty<ProductDTO>());
         }
+
+        private static IDictionary<string, string[]> ToErrorDictionary(FluentValidation.Results.ValidationResult validationResult)
+            => validationResult.Errors
+                .GroupBy(e => e.PropertyName, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(e => e.ErrorMessage).Distinct().ToArray(),
+                    StringComparer.OrdinalIgnoreCase);
 
     }
 }

@@ -41,8 +41,8 @@ namespace CartService.Api.Logging
 
             Log.Logger = new LoggerConfiguration()
                 .ReadFrom.Configuration(config)
-                .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
-                .MinimumLevel.Information()
+                .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+                .MinimumLevel.Warning()
                 .Enrich.FromLogContext()
                 .Enrich.WithProperty("Application", "CartService")
                 .Enrich.WithProperty("EnvironmentName", environment)

@@ -8,9 +8,15 @@
         @foreach (var s in Model)
         {
             <button class="list-group-item list-group-item-action d-flex justify-content-between align-items-center @(s.IsSelected ? "active" : "")"
-                    onclick="selectShipping(@cartId, '@s.MethodCode')">
-                <span>@s.Carrier - @s.MethodName (@s.EstimatedDays?.ToString() ?? "?") days</span>
-                <span>?@s.Cost.ToString("##.#")</span>
+                    data-cart-id="@cartId"
+                    data-carrier="@s.Carrier"
+                    data-method-code="@s.MethodCode"
+                    data-method-name="@s.MethodName"
+                    data-cost="@s.Cost"
+                    data-days="@s.EstimatedDays"
+                    onclick="selectShipping(this)">
+                <span>@s.Carrier - @s.MethodName (@(s.EstimatedDays?.ToString() ?? "?") days)</span>
+                <span>?@s.Cost.ToString("N2")</span>
             </button>
         }
     </div>

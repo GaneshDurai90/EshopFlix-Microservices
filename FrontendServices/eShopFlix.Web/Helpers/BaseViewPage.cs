@@ -7,6 +7,11 @@ namespace eShopFlix.Web.Helpers
 {
     public abstract class BaseViewPage<TModel> : RazorPage<TModel>
     {
+        private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
+        {
+            PropertyNameCaseInsensitive = true
+        };
+
         public UserModel CurrentUser
         {
             get
@@ -14,7 +19,7 @@ namespace eShopFlix.Web.Helpers
                 if (User.Identity.IsAuthenticated)
                 {
                     string strData = User.FindFirst(ClaimTypes.UserData).Value;
-                    return JsonSerializer.Deserialize<UserModel>(strData);
+                    return JsonSerializer.Deserialize<UserModel>(strData, SerializerOptions);
                 }
                 return null;
             }

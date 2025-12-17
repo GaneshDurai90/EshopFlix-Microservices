@@ -21,5 +21,7 @@ public partial class User
 
     public DateTime CreatedDate { get; set; }
 
+    public virtual ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+
     public virtual ICollection<Role> Roles { get; set; } = new List<Role>();
 }

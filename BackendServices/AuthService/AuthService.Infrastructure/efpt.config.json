@@ -16,6 +16,10 @@
    "T4TemplatePath": null,
    "Tables": [
       {
+         "Name": "[dbo].[RefreshTokens]",
+         "ObjectType": 0
+      },
+      {
          "Name": "[dbo].[Roles]",
          "ObjectType": 0
       },

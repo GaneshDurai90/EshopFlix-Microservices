@@ -1,0 +1,37 @@
+@using eShopFlix.Web.Security
+@{
+    var authError = Context.Request.Cookies[AuthCookieNames.AuthError];
+    if (!string.IsNullOrWhiteSpace(authError))
+    {
+        <div class="alert alert-danger alert-dismissible fade show small shadow-sm" role="alert">
+            <strong>Session ended.</strong> Please sign in again to continue.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        Context.Response.Cookies.Delete(AuthCookieNames.AuthError);
+    }
+
+    if (CurrentUser?.AccessTokenExpiresAt != default)
+    {
+        var expiryUtc = DateTime.SpecifyKind(CurrentUser.AccessTokenExpiresAt, DateTimeKind.Utc);
+        var remaining = expiryUtc - DateTime.UtcNow;
+        if (remaining <= TimeSpan.Zero)
+        {
+            <div class="alert alert-danger alert-dismissible fade show small shadow-sm" role="alert">
+                <strong>Session expired.</strong> Refresh the page and sign in again.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+        else if (remaining <= TimeSpan.FromMinutes(5))
+        {
+            var severityClass = remaining <= TimeSpan.FromMinutes(1) ? "alert-danger" : "alert-warning";
+            var remainingText = remaining <= TimeSpan.FromMinutes(1)
+                ? $"{Math.Max(5, (int)Math.Round(remaining.TotalSeconds))} seconds"
+                : $"{Math.Max(1, (int)Math.Ceiling(remaining.TotalMinutes))} minute(s)";
+
+            <div class="alert @severityClass alert-dismissible fade show small shadow-sm" role="alert">
+                <strong>Heads up:</strong> Your session ends in @remainingText. Finish your work or save progress.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+    }
+}

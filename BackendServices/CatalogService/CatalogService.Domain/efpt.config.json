@@ -16,12 +16,84 @@
    "T4TemplatePath": null,
    "Tables": [
       {
+         "Name": "[dbo].[Brands]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[BulkImportItem]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[BulkImportJob]",
+         "ObjectType": 0
+      },
+      {
          "Name": "[dbo].[Categories]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[Inbox]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[InventorySnapshots]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[Manufacturers]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[Outbox]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[PriceHistory]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[ProductAttributes]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[ProductImages]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[ProductPromotions]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[ProductRelationships]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[ProductReviews]",
          "ObjectType": 0
       },
       {
          "Name": "[dbo].[Products]",
          "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[ProductTags]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[ProductVariants]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[Promotions]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[Tags]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[vw_ProductSearch]",
+         "ObjectType": 3
       }
    ],
    "UiHint": null,

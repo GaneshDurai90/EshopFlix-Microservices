@@ -14,12 +14,29 @@ public partial class AuthServiceDbContext : DbContext
     {
     }
 
+    public virtual DbSet<RefreshToken> RefreshTokens { get; set; }
+
     public virtual DbSet<Role> Roles { get; set; }
 
     public virtual DbSet<User> Users { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__RefreshT__3214EC07C52A3A4F");
+
+            entity.HasIndex(e => e.Token, "UQ__RefreshT__1EB4F81749539477").IsUnique();
+
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.ReplacedByToken).HasMaxLength(512);
+            entity.Property(e => e.Token)
+                .IsRequired()
+                .HasMaxLength(512);
+
+            entity.HasOne(d => d.User).WithMany(p => p.RefreshTokens).HasForeignKey(d => d.UserId);
+        });
+
         modelBuilder.Entity<Role>(entity =>
         {
             entity.Property(e => e.Name).IsRequired();

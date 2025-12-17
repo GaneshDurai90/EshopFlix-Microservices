@@ -11,5 +11,27 @@ public partial class Category
 
     public string Name { get; set; }
 
+    public string Slug { get; set; }
+
+    public string Description { get; set; }
+
+    public int? ParentCategoryId { get; set; }
+
+    public int SortOrder { get; set; }
+
+    public bool IsActive { get; set; }
+
+    public string CreatedBy { get; set; }
+
+    public DateTime CreatedDate { get; set; }
+
+    public string LastModifiedBy { get; set; }
+
+    public DateTime? LastModifiedDate { get; set; }
+
+    public virtual ICollection<Category> InverseParentCategory { get; set; } = new List<Category>();
+
+    public virtual Category ParentCategory { get; set; }
+
     public virtual ICollection<Product> Products { get; set; } = new List<Product>();
 }

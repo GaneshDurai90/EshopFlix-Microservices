@@ -1,4 +1,5 @@
-﻿using System.Threading;
+﻿using System;
+using System.Threading;
 using System.Threading.Tasks;
 using CartService.Application.Services.Abstractions; // App IIdempotentRequestStore
 using CartService.Domain.Entities;
@@ -20,7 +21,13 @@ namespace CartService.Infrastructure.Persistence.Services.Implementations
         public Task<bool> TryCreateAsync(IdempotentRequest request, CancellationToken ct = default)
             => _inner.TryCreateAsync(request, ct);
 
-        public Task PersistResponseAsync(IdempotentRequest request, CancellationToken ct = default)
-            => _inner.PersistResponseAsync(request, ct);
+        public Task<IdempotentRequest?> TryAcquireLockAsync(string key, long? userId, DateTime utcNow, DateTime lockedUntil, DateTime expiresOn, string? requestHash, CancellationToken ct = default)
+            => _inner.TryAcquireLockAsync(key, userId, utcNow, lockedUntil, expiresOn, requestHash, ct);
+
+        public Task PersistResponseAsync(long requestId, string responseBody, int statusCode, DateTime? expiresOn, CancellationToken ct = default)
+            => _inner.PersistResponseAsync(requestId, responseBody, statusCode, expiresOn, ct);
+
+        public Task ReleaseLockAsync(long requestId, CancellationToken ct = default)
+            => _inner.ReleaseLockAsync(requestId, ct);
     }
 }

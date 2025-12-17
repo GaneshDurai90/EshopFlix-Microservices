@@ -39,8 +39,8 @@ namespace OcelotApiGateway.Logging
 
             Log.Logger = new LoggerConfiguration()
                 .ReadFrom.Configuration(config)
-                .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
-                .MinimumLevel.Information()
+                .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
+                .MinimumLevel.Warning()
                 .Enrich.FromLogContext()
                 .Enrich.WithProperty("Application", "OcelotGateway")
                 .Enrich.WithProperty("EnvironmentName", environment)

@@ -263,7 +263,7 @@ public partial class CartServiceDbContext : DbContext
 
         modelBuilder.Entity<IdempotentRequest>(entity =>
         {
-            entity.HasNoKey();
+            entity.HasKey(e => e.Id);
 
             entity.HasIndex(e => new { e.Key, e.UserId }, "UX_IdempotentRequests_Key_User")
                 .IsUnique()

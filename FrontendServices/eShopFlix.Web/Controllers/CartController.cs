@@ -1,4 +1,6 @@
-﻿using eShopFlix.Web.Helpers;
+﻿using System.Linq;
+using System.Threading.Tasks;
+using eShopFlix.Web.Helpers;
 using eShopFlix.Web.HttpClients;
 using eShopFlix.Web.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -20,11 +22,18 @@ namespace eShopFlix.Web.Controllers
                 CartModel cartModel = await _cartServiceClient.GetUserCartAsync(CurrentUser.UserId);
                 if (cartModel != null)
                 {
-                    // Preload totals/coupons/shipments/saved for initial render
-                    ViewBag.Totals = await _cartServiceClient.GetTotalsAsync(cartModel.Id);
-                    ViewBag.Coupons = await _cartServiceClient.GetCouponsAsync(cartModel.Id) ?? new List<CouponModel>();
-                    ViewBag.Shipments = await _cartServiceClient.GetShipmentsAsync(cartModel.Id) ?? new List<ShipmentModel>();
-                    ViewBag.Saved = await _cartServiceClient.GetSavedForLaterAsync(cartModel.Id) ?? new List<SavedForLaterItemModel>();
+                    // Preload auxiliary data in parallel so the page renders faster
+                    var totalsTask = _cartServiceClient.GetTotalsAsync(cartModel.Id);
+                    var couponsTask = _cartServiceClient.GetCouponsAsync(cartModel.Id);
+                    var shipmentsTask = _cartServiceClient.GetShipmentsAsync(cartModel.Id);
+                    var savedTask = _cartServiceClient.GetSavedForLaterAsync(cartModel.Id);
+
+                    await Task.WhenAll(totalsTask, couponsTask, shipmentsTask, savedTask);
+
+                    ViewBag.Totals = await totalsTask;
+                    ViewBag.Coupons = (await couponsTask) ?? new List<CouponModel>();
+                    ViewBag.Shipments = (await shipmentsTask) ?? new List<ShipmentModel>();
+                    ViewBag.Saved = (await savedTask) ?? new List<SavedForLaterItemModel>();
                 }
                 return View(cartModel);
             }
@@ -47,7 +56,7 @@ namespace eShopFlix.Web.Controllers
             CartModel cartModel = await _cartServiceClient.AddToCartAsync(cartItemModel, CurrentUser.UserId);
             if (cartModel != null)
             {
-                return Json(new { status = "success", count = cartModel.CartItems.Count });
+                return Json(new { status = "success", count = CalculateQuantity(cartModel) });
             }
             return Json(new { status = "failed", count = 0 });
         }
@@ -68,9 +77,9 @@ namespace eShopFlix.Web.Controllers
 
         public async Task<IActionResult> GetCartCount()
         {
-            if (CurrentUser != null)
+            if (CurrentUser != null && CurrentUser.UserId > 0)
             {
-                var count =  await _cartServiceClient.GetCartItemCount(CurrentUser.UserId);
+                var count = await _cartServiceClient.GetCartItemCount(CurrentUser.UserId);
                 return Json(count);
             }
             return Json(0);
@@ -146,21 +155,21 @@ namespace eShopFlix.Web.Controllers
         }
 
         [HttpPost]
-        public async Task<IActionResult> Clear(long cartId)
+        public async Task<IActionResult> Clear([FromQuery] long cartId)
         {
             var ok = await _cartServiceClient.ClearAsync(cartId);
             return Json(new { success = ok });
         }
 
         [HttpPost]
-        public async Task<IActionResult> SaveForLater(long cartId, int itemId)
+        public async Task<IActionResult> SaveForLater([FromQuery] long cartId, [FromQuery] int itemId)
         {
             var ok = await _cartServiceClient.SaveForLaterAsync(cartId, itemId);
             return Json(new { success = ok });
         }
 
         [HttpPost]
-        public async Task<IActionResult> MoveSavedToCart(int savedItemId)
+        public async Task<IActionResult> MoveSavedToCart([FromQuery] int savedItemId)
         {
             var ok = await _cartServiceClient.MoveSavedToCartAsync(savedItemId);
             return Json(new { success = ok });
@@ -177,5 +186,8 @@ namespace eShopFlix.Web.Controllers
             if (cart is null) return View(model);
             return RedirectToAction(nameof(Index));
         }
+
+        private static int CalculateQuantity(CartModel? cart)
+            => cart?.CartItems?.Sum(i => i.Quantity) ?? 0;
     }
 }

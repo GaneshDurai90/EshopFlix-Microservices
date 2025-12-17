@@ -32,9 +32,10 @@ namespace CartService.Infrastructure
     {
         public static void RegisterServices(IServiceCollection services, IConfiguration configuration)
         {
-            // DbContext
+            // DbContext (factory-backed so scoped contexts come from pooled creators)
             var connectionString = configuration.GetConnectionString("DbConnection");
-            services.AddDbContext<CartServiceDbContext>(options => options.UseSqlServer(connectionString));
+            services.AddDbContextFactory<CartServiceDbContext>(options => options.UseSqlServer(connectionString));
+            services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<CartServiceDbContext>>().CreateDbContext());
 
             // Repositories
             services.AddScoped<ICartRepository, CartRepository>();

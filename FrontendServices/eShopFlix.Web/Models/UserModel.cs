@@ -1,4 +1,6 @@
-﻿namespace eShopFlix.Web.Models
+﻿using System;
+
+namespace eShopFlix.Web.Models
 {
     public class UserModel
     {
@@ -7,6 +9,9 @@
         public string Email { get; set; }
         public string PhoneNumber { get; set; }
         public string[] Roles { get; set; }
-        public string Token { get; set; }
+        public string Token { get; set; } = string.Empty;
+        public DateTime AccessTokenExpiresAt { get; set; }
+        public string RefreshToken { get; set; } = string.Empty;
+        public DateTime RefreshTokenExpiresAt { get; set; }
     }
 }
