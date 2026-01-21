@@ -10,11 +10,16 @@ namespace eShopFlix.Web.Controllers
     public class ProductsController : Controller
     {
         private readonly CatalogServiceClient _catalogClient;
+        private readonly StockServiceClient _stockClient;
         private readonly ILogger<ProductsController> _logger;
 
-        public ProductsController(CatalogServiceClient catalogClient, ILogger<ProductsController> logger)
+        public ProductsController(
+            CatalogServiceClient catalogClient, 
+            StockServiceClient stockClient,
+            ILogger<ProductsController> logger)
         {
             _catalogClient = catalogClient;
+            _stockClient = stockClient;
             _logger = logger;
         }
 
@@ -33,21 +38,36 @@ namespace eShopFlix.Web.Controllers
                 return NotFound();
             }
 
-            var variants = await _catalogClient.GetProductVariantsAsync(id, ct);
-            var priceHistory = await _catalogClient.GetPriceHistoryAsync(id, 8, ct);
-            var reviews = await _catalogClient.GetProductReviewsAsync(id, 6, ct);
-            var promotions = await _catalogClient.GetActivePromotionsAsync(3, ct);
+            // Fetch data in parallel for performance
+            var variantsTask = _catalogClient.GetProductVariantsAsync(id, ct);
+            var priceHistoryTask = _catalogClient.GetPriceHistoryAsync(id, 8, ct);
+            var reviewsTask = _catalogClient.GetProductReviewsAsync(id, 6, ct);
+            var promotionsTask = _catalogClient.GetActivePromotionsAsync(3, ct);
+            var stockTask = _stockClient.GetAvailabilityAsync(id, null, ct);
+
+            await Task.WhenAll(variantsTask, priceHistoryTask, reviewsTask, promotionsTask, stockTask);
 
             var viewModel = new ProductDetailsViewModel
             {
                 Product = product,
-                Variants = variants,
-                PriceHistory = priceHistory,
-                Reviews = reviews,
-                ActivePromotions = promotions
+                Variants = await variantsTask,
+                PriceHistory = await priceHistoryTask,
+                Reviews = await reviewsTask,
+                ActivePromotions = await promotionsTask,
+                StockAvailability = await stockTask
             };
 
             return View(viewModel);
+        }
+
+        /// <summary>
+        /// AJAX endpoint to check stock availability for a specific quantity.
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> CheckStock(int productId, int quantity, int? variationId, CancellationToken ct)
+        {
+            var availability = await _stockClient.CheckAvailabilityAsync(productId, quantity, variationId, ct);
+            return Json(availability);
         }
     }
 }

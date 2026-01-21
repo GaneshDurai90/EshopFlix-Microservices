@@ -7,14 +7,22 @@ namespace eShopFlix.Web.Controllers
 {
     public class BaseController : Controller
     {
-        public UserModel CurrentUser
+        private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
+        {
+            PropertyNameCaseInsensitive = true
+        };
+
+        public UserModel? CurrentUser
         {
             get
             {
-                if (User.Identity.IsAuthenticated)
+                if (User?.Identity?.IsAuthenticated == true)
                 {
-                    string strData = User.FindFirst(ClaimTypes.UserData).Value;
-                    return JsonSerializer.Deserialize<UserModel>(strData);
+                    var claim = User.FindFirst(ClaimTypes.UserData);
+                    if (claim != null && !string.IsNullOrWhiteSpace(claim.Value))
+                    {
+                        return JsonSerializer.Deserialize<UserModel>(claim.Value, SerializerOptions);
+                    }
                 }
                 return null;
             }

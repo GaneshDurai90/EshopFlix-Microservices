@@ -239,7 +239,19 @@ namespace CartService.Application.Services.Implementations
             var cart = await _cartRepository.GetUserCart(userId);
             if (cart == null) return null;
 
-            return await BuildDtoFromSnapshotAsync(cart.Id, CancellationToken.None);
+            // Ensure CartItems is loaded - if EF didn't load them, fetch separately
+            if (cart.CartItems == null || !cart.CartItems.Any())
+            {
+                var items = await _cartRepository.GetCartItems(cart.Id);
+                if (items != null && items.Any())
+                {
+                    cart.CartItems = items.ToList();
+                }
+            }
+
+            // Use the EF-loaded cart directly instead of the snapshot procedure
+            // This ensures we get the actual CartItems from the database
+            return await PopulateCartDetailsAsync(cart, CancellationToken.None);
         }
 
         public Task<IReadOnlyList<CartItemOption>> GetItemOptionsAsync(int cartItemId, CancellationToken ct = default)

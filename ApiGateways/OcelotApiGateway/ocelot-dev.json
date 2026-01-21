@@ -120,6 +120,28 @@
       "UpstreamPathTemplate": "/order/{everything}",
       "UpstreamHttpMethod": [ "GET", "POST" ],
       "DelegatingHandlers": [ "OcelotApiGateway.Resilience.DownstreamResilienceHandler, OcelotApiGateway" ]
+    },
+    {
+      "DownstreamPathTemplate": "/api/Stock/{everything}",
+      "DownstreamScheme": "https",
+      "DownstreamHostAndPorts": [
+        { "Host": "localhost", "Port": 7200 }
+      ],
+      "UpstreamPathTemplate": "/stock/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST", "PUT", "DELETE" ],
+      "QoSOptions": {
+        "ExceptionsAllowedBeforeBreaking": 3,
+        "DurationOfBreak": 30,
+        "TimeoutValue": 10000
+      },
+      "RateLimitOptions": {
+        "ClientWhitelist": [],
+        "EnableRateLimiting": true,
+        "Period": "1m",
+        "PeriodTimespan": 1,
+        "Limit": 200
+      },
+      "DelegatingHandlers": [ "OcelotApiGateway.Resilience.DownstreamResilienceHandler, OcelotApiGateway" ]
     }
   ]
 }

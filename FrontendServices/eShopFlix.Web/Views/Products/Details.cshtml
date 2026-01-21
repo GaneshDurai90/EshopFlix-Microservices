@@ -1,6 +1,7 @@
 @model eShopFlix.Web.Models.ProductDetailsViewModel
 @{
     var product = Model?.Product;
+    var stock = Model?.StockAvailability;
     ViewData["Title"] = product?.Name ?? "Product";
 }
 
@@ -15,9 +16,52 @@
         <div class="card shadow-sm">
             <img class="card-img-top object-fit-cover" style="height:360px" src="@product.PrimaryImageUrl" alt="@product.Name" />
             <div class="card-body">
-                <span class="badge bg-light text-uppercase text-muted mb-2">Product #@product.ProductId</span>
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <span class="badge bg-light text-uppercase text-muted">Product #@product.ProductId</span>
+                    @if (stock is not null)
+                    {
+                        <span class="badge @stock.StatusBadgeClass">
+                            <i class="bi @(stock.IsInStock ? "bi-check-circle" : "bi-x-circle") me-1"></i>
+                            @stock.StatusText
+                        </span>
+                    }
+                </div>
                 <h3 class="card-title">@product.Name</h3>
                 <p class="text-muted">@product.ShortDescription ?? product.LongDescription</p>
+                
+                @* Stock Information Section *@
+                @if (stock is not null)
+                {
+                    <div class="alert @(stock.IsInStock ? (stock.IsLowStock ? "alert-warning" : "alert-success") : "alert-danger") py-2 mb-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                @if (stock.IsInStock)
+                                {
+                                    <i class="bi bi-box-seam me-2"></i>
+                                    <span>@stock.TotalAvailable available</span>
+                                    @if (stock.TotalReserved > 0)
+                                    {
+                                        <small class="text-muted ms-2">(@stock.TotalReserved reserved)</small>
+                                    }
+                                }
+                                else
+                                {
+                                    <i class="bi bi-exclamation-triangle me-2"></i>
+                                    <span>Currently unavailable</span>
+                                    @if (stock.NextRestockDate.HasValue)
+                                    {
+                                        <small class="ms-2">Expected: @stock.NextRestockDate.Value.ToString("MMM dd")</small>
+                                    }
+                                }
+                            </div>
+                            @if (stock.WarehouseCount > 1)
+                            {
+                                <small class="text-muted">From @stock.WarehouseCount warehouses</small>
+                            }
+                        </div>
+                    </div>
+                }
+
                 <dl class="row small">
                     <dt class="col-sm-4">Status</dt>
                     <dd class="col-sm-8">@product.Status</dd>
@@ -33,9 +77,25 @@
                     @{
                         var primaryVariant = Model?.Variants?.FirstOrDefault(v => v.IsDefault) ?? Model?.Variants?.FirstOrDefault();
                         var primaryPrice = primaryVariant?.UnitPrice.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+                        var canAddToCart = Model?.CanAddToCart ?? true;
+                        
                         if (CurrentUser != null && primaryVariant != null)
                         {
-                            <button class="btn btn-primary" onclick="addToCart('@product.ProductId','@product.Name','@primaryPrice',1)">Add to Cart</button>
+                            if (canAddToCart)
+                            {
+                                <button class="btn btn-primary" onclick="addToCart('@product.ProductId','@product.Name','@primaryPrice',1)">
+                                    <i class="bi bi-cart-plus me-1"></i> Add to Cart
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-secondary" disabled>
+                                    <i class="bi bi-x-circle me-1"></i> Out of Stock
+                                </button>
+                                <button class="btn btn-outline-primary" onclick="notifyWhenAvailable('@product.ProductId')">
+                                    <i class="bi bi-bell me-1"></i> Notify Me
+                                </button>
+                            }
                         }
                         else if (CurrentUser == null)
                         {
@@ -68,6 +128,7 @@
                             foreach (var variant in Model.Variants)
                             {
                                 var variantPrice = variant.UnitPrice.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+                                var variantCanAdd = Model.CanAddToCart;
                                 <tr>
                                     <td>@variant.Sku</td>
                                     <td>?@variant.UnitPrice.ToString("N2")</td>
@@ -75,7 +136,16 @@
                                     <td>
                                         @if (CurrentUser != null)
                                         {
-                                            <button class="btn btn-sm btn-outline-primary" onclick="addToCart('@product.ProductId','@product.Name','@variantPrice',1)">Add</button>
+                                            if (variantCanAdd)
+                                            {
+                                                <button class="btn btn-sm btn-outline-primary" onclick="addToCart('@product.ProductId','@product.Name','@variantPrice',1)">
+                                                    <i class="bi bi-cart-plus"></i> Add
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">Unavailable</span>
+                                            }
                                         }
                                     </td>
                                 </tr>
@@ -170,4 +240,13 @@
             }
         </div>
     </div>
+}
+
+@section Scripts {
+    <script>
+        function notifyWhenAvailable(productId) {
+            // TODO: Implement notify me functionality
+            alert('We will notify you when this product is back in stock!');
+        }
+    </script>
 }

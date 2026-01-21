@@ -37,7 +37,7 @@ namespace OcelotApiGateway.Resilience
         private static IAsyncPolicy<HttpResponseMessage> BuildPolicy()
         {
             var timeout = Policy.TimeoutAsync<HttpResponseMessage>(
-                TimeSpan.FromSeconds(2), TimeoutStrategy.Pessimistic,
+                TimeSpan.FromSeconds(30), TimeoutStrategy.Pessimistic, // Increased from 2s to 30s for debugging
                 onTimeoutAsync: (ctx, span, task) =>
                 {
                     Log.Error("[Timeout] op={OperationKey} after {Seconds}s", ctx.OperationKey, span.TotalSeconds);
@@ -45,18 +45,19 @@ namespace OcelotApiGateway.Resilience
                 });
 
             var retry = Policy
-                .HandleResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode)
+                .HandleResult<HttpResponseMessage>(r => r.StatusCode >= System.Net.HttpStatusCode.InternalServerError) // Only retry on 5xx errors
                 .Or<HttpRequestException>()
-                .WaitAndRetryAsync(3,
+                .Or<TimeoutRejectedException>()
+                .WaitAndRetryAsync(2, // Reduced from 3 to 2 retries
                     attempt => TimeSpan.FromSeconds(Math.Pow(2, attempt)),
                     (outcome, delay, attempt, ctx) =>
                         Log.Warning("[Polly-Retry] op={OperationKey} attempt={Attempt} delay={Delay}s status={Status}",
                             ctx.OperationKey, attempt, delay.TotalSeconds, outcome.Result?.StatusCode));
 
             var breaker = Policy
-                .HandleResult<HttpResponseMessage>(r => !r.IsSuccessStatusCode)
+                .HandleResult<HttpResponseMessage>(r => r.StatusCode >= System.Net.HttpStatusCode.InternalServerError)
                 .Or<HttpRequestException>()
-                .CircuitBreakerAsync(3, TimeSpan.FromSeconds(30),
+                .CircuitBreakerAsync(5, TimeSpan.FromSeconds(30), // Increased threshold from 3 to 5
                     onBreak: (outcome, span, ctx) =>
                         Log.Warning("[CircuitBreaker] op={OperationKey} OPEN for {Break}s status={Status}",
                             ctx.OperationKey, span.TotalSeconds, outcome.Result?.StatusCode),
@@ -64,8 +65,9 @@ namespace OcelotApiGateway.Resilience
                     onHalfOpen: () => Log.Information("[CircuitBreaker] HALF-OPEN"));
 
             var fallback = Policy<HttpResponseMessage>
-                .Handle<Exception>()
-                .OrResult(r => !r.IsSuccessStatusCode)
+                .Handle<TimeoutRejectedException>()
+                .Or<BrokenCircuitException>()
+                .Or<HttpRequestException>()
                 .FallbackAsync(ct =>
                 {
                     Log.Warning("[Fallback] op=gateway returning problem details response");

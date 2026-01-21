@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using StockService.Domain.Entities;
+using StockService.Infrastructure.Models;
 
 namespace StockService.Infrastructure.Persistence;
 
@@ -14,13 +15,686 @@ public partial class StockServiceDbContext : DbContext
     {
     }
 
-    public virtual DbSet<Stock> Stocks { get; set; }
+    public virtual DbSet<BackorderItem> BackorderItems { get; set; }
+
+    public virtual DbSet<InboxMessage> InboxMessages { get; set; }
+
+    public virtual DbSet<OutboxMessage> OutboxMessages { get; set; }
+
+    public virtual DbSet<PurchaseOrder> PurchaseOrders { get; set; }
+
+    public virtual DbSet<PurchaseOrderItem> PurchaseOrderItems { get; set; }
+
+    public virtual DbSet<StockAdjustment> StockAdjustments { get; set; }
+
+    public virtual DbSet<StockAlert> StockAlerts { get; set; }
+
+    public virtual DbSet<StockAllocationRule> StockAllocationRules { get; set; }
+
+    public virtual DbSet<StockAudit> StockAudits { get; set; }
+
+    public virtual DbSet<StockAuditItem> StockAuditItems { get; set; }
+
+    public virtual DbSet<StockItem> StockItems { get; set; }
+
+    public virtual DbSet<StockMovement> StockMovements { get; set; }
+
+    public virtual DbSet<StockReservation> StockReservations { get; set; }
+
+    public virtual DbSet<StockTransfer> StockTransfers { get; set; }
+
+    public virtual DbSet<StockTransferItem> StockTransferItems { get; set; }
+
+    public virtual DbSet<Supplier> Suppliers { get; set; }
+
+    public virtual DbSet<VwBackorderSummary> VwBackorderSummaries { get; set; }
+
+    public virtual DbSet<VwDeadStockCandidate> VwDeadStockCandidates { get; set; }
+
+    public virtual DbSet<VwExpiryRisk> VwExpiryRisks { get; set; }
+
+    public virtual DbSet<VwLowStockItem> VwLowStockItems { get; set; }
+
+    public virtual DbSet<VwPurchaseOrderStatus> VwPurchaseOrderStatuses { get; set; }
+
+    public virtual DbSet<VwReorderRecommendation> VwReorderRecommendations { get; set; }
+
+    public virtual DbSet<VwStockAdjustmentHistory> VwStockAdjustmentHistories { get; set; }
+
+    public virtual DbSet<VwStockAvailableByWarehouse> VwStockAvailableByWarehouses { get; set; }
+
+    public virtual DbSet<VwStockMovementHistory> VwStockMovementHistories { get; set; }
+
+    public virtual DbSet<VwStockOverview> VwStockOverviews { get; set; }
+
+    public virtual DbSet<VwStockReservationStatus> VwStockReservationStatuses { get; set; }
+
+    public virtual DbSet<VwStockTransferStatus> VwStockTransferStatuses { get; set; }
+
+    public virtual DbSet<VwStockValuation> VwStockValuations { get; set; }
+
+    public virtual DbSet<Warehouse> Warehouses { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<Stock>(entity =>
+        modelBuilder.Entity<BackorderItem>(entity =>
         {
-            entity.Property(e => e.LastUpdated).HasColumnType("datetime");
+            entity.HasKey(e => e.BackorderId);
+
+            entity.HasIndex(e => e.OrderId, "IX_Backorder_Order");
+
+            entity.HasIndex(e => new { e.ProductId, e.BackorderStatus }, "IX_Backorder_Product_Status");
+
+            entity.Property(e => e.BackorderId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.BackorderStatus)
+                .IsRequired()
+                .HasMaxLength(20);
+            entity.Property(e => e.RequestedDate).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.RowVersion)
+                .IsRequired()
+                .IsRowVersion()
+                .IsConcurrencyToken();
+        });
+
+        modelBuilder.Entity<InboxMessage>(entity =>
+        {
+            entity.HasIndex(e => e.ExternalMessageId, "UQ_InboxMessages_Message").IsUnique();
+
+            entity.Property(e => e.InboxMessageId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.MessageType)
+                .IsRequired()
+                .HasMaxLength(200);
+            entity.Property(e => e.ReceivedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.RowVersion)
+                .IsRequired()
+                .IsRowVersion()
+                .IsConcurrencyToken();
+        });
+
+        modelBuilder.Entity<OutboxMessage>(entity =>
+        {
+            entity.Property(e => e.OutboxMessageId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.MessageType)
+                .IsRequired()
+                .HasMaxLength(200);
+            entity.Property(e => e.Payload).IsRequired();
+            entity.Property(e => e.RowVersion)
+                .IsRequired()
+                .IsRowVersion()
+                .IsConcurrencyToken();
+        });
+
+        modelBuilder.Entity<PurchaseOrder>(entity =>
+        {
+            entity.HasIndex(e => new { e.WarehouseId, e.OrderStatus }, "IX_PO_Warehouse_Status");
+
+            entity.HasIndex(e => e.ExpectedDeliveryDate, "IX_PurchaseOrders_ETA");
+
+            entity.HasIndex(e => e.OrderStatus, "IX_PurchaseOrders_Status");
+
+            entity.HasIndex(e => new { e.WarehouseId, e.OrderStatus }, "IX_PurchaseOrders_Warehouse_Status");
+
+            entity.HasIndex(e => e.Ponumber, "UQ_PurchaseOrders_PONumber").IsUnique();
+
+            entity.Property(e => e.PurchaseOrderId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Notes).HasMaxLength(500);
+            entity.Property(e => e.OrderDate).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.OrderStatus)
+                .IsRequired()
+                .HasMaxLength(20);
+            entity.Property(e => e.Ponumber)
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasColumnName("PONumber");
+            entity.Property(e => e.RowVersion)
+                .IsRequired()
+                .IsRowVersion()
+                .IsConcurrencyToken();
+            entity.Property(e => e.TotalAmount).HasColumnType("decimal(18, 4)");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(sysutcdatetime())");
+
+            entity.HasOne(d => d.Supplier).WithMany(p => p.PurchaseOrders)
+                .HasForeignKey(d => d.SupplierId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_PurchaseOrders_Supplier");
+
+            entity.HasOne(d => d.Warehouse).WithMany(p => p.PurchaseOrders)
+                .HasForeignKey(d => d.WarehouseId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_PurchaseOrders_Warehouse");
+        });
+
+        modelBuilder.Entity<PurchaseOrderItem>(entity =>
+        {
+            entity.HasKey(e => e.PoitemId);
+
+            entity.HasIndex(e => e.ProductId, "IX_PurchaseOrderItems_Product");
+
+            entity.HasIndex(e => e.PurchaseOrderId, "IX_PurchaseOrderItems_PurchaseOrder");
+
+            entity.Property(e => e.PoitemId)
+                .HasDefaultValueSql("(newid())")
+                .HasColumnName("POItemId");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.RowVersion)
+                .IsRequired()
+                .IsRowVersion()
+                .IsConcurrencyToken();
+            entity.Property(e => e.TotalCost)
+                .HasComputedColumnSql("([UnitCost]*[OrderedQuantity])", true)
+                .HasColumnType("decimal(29, 4)");
+            entity.Property(e => e.UnitCost).HasColumnType("decimal(18, 4)");
+
+            entity.HasOne(d => d.PurchaseOrder).WithMany(p => p.PurchaseOrderItems)
+                .HasForeignKey(d => d.PurchaseOrderId)
+                .HasConstraintName("FK_PurchaseOrderItems_PurchaseOrder");
+        });
+
+        modelBuilder.Entity<StockAdjustment>(entity =>
+        {
+            entity.HasKey(e => e.AdjustmentId);
+
+            entity.HasIndex(e => e.StockItemId, "IX_StockAdjustments_StockItem");
+
+            entity.HasIndex(e => e.AdjustmentType, "IX_StockAdjustments_Type");
+
+            entity.Property(e => e.AdjustmentId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.AdjustmentDate).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.AdjustmentType)
+                .IsRequired()
+                .HasMaxLength(20);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Notes).HasMaxLength(500);
+            entity.Property(e => e.Reason).HasMaxLength(200);
+            entity.Property(e => e.RowVersion)
+                .IsRequired()
+                .IsRowVersion()
+                .IsConcurrencyToken();
+
+            entity.HasOne(d => d.StockItem).WithMany(p => p.StockAdjustments)
+                .HasForeignKey(d => d.StockItemId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_StockAdjustments_StockItem");
+        });
+
+        modelBuilder.Entity<StockAlert>(entity =>
+        {
+            entity.HasKey(e => e.AlertId);
+
+            entity.HasIndex(e => e.AlertStatus, "IX_StockAlerts_Active").HasFilter("([AlertStatus]='Active')");
+
+            entity.HasIndex(e => e.AlertType, "IX_StockAlerts_Type");
+
+            entity.Property(e => e.AlertId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.AlertStatus)
+                .IsRequired()
+                .HasMaxLength(20);
+            entity.Property(e => e.AlertType)
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(e => e.Message).HasMaxLength(500);
+            entity.Property(e => e.RowVersion)
+                .IsRequired()
+                .IsRowVersion()
+                .IsConcurrencyToken();
+            entity.Property(e => e.TriggeredAt).HasDefaultValueSql("(sysutcdatetime())");
+
+            entity.HasOne(d => d.StockItem).WithMany(p => p.StockAlerts)
+                .HasForeignKey(d => d.StockItemId)
+                .HasConstraintName("FK_StockAlerts_StockItem");
+        });
+
+        modelBuilder.Entity<StockAllocationRule>(entity =>
+        {
+            entity.HasKey(e => e.RuleId);
+
+            entity.HasIndex(e => e.IsActive, "IX_AllocationRules_Active");
+
+            entity.HasIndex(e => e.Priority, "IX_AllocationRules_Priority");
+
+            entity.Property(e => e.RuleId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.AllocationType)
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.Priority).HasDefaultValue(1);
+            entity.Property(e => e.RowVersion)
+                .IsRequired()
+                .IsRowVersion()
+                .IsConcurrencyToken();
+            entity.Property(e => e.RuleName)
+                .IsRequired()
+                .HasMaxLength(200);
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(sysutcdatetime())");
+        });
+
+        modelBuilder.Entity<StockAudit>(entity =>
+        {
+            entity.HasKey(e => e.AuditId);
+
+            entity.ToTable("StockAudit");
+
+            entity.HasIndex(e => e.AuditStatus, "IX_StockAudit_Status");
+
+            entity.HasIndex(e => e.WarehouseId, "IX_StockAudit_Warehouse");
+
+            entity.Property(e => e.AuditId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.AuditStatus)
+                .IsRequired()
+                .HasMaxLength(20);
+            entity.Property(e => e.AuditType)
+                .IsRequired()
+                .HasMaxLength(20);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Notes).HasMaxLength(500);
+            entity.Property(e => e.RowVersion)
+                .IsRequired()
+                .IsRowVersion()
+                .IsConcurrencyToken();
+
+            entity.HasOne(d => d.Warehouse).WithMany(p => p.StockAudits)
+                .HasForeignKey(d => d.WarehouseId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_StockAudit_Warehouse");
+        });
+
+        modelBuilder.Entity<StockAuditItem>(entity =>
+        {
+            entity.HasKey(e => e.AuditItemId);
+
+            entity.HasIndex(e => e.AuditId, "IX_StockAuditItems_Audit");
+
+            entity.HasIndex(e => e.StockItemId, "IX_StockAuditItems_StockItem");
+
+            entity.Property(e => e.AuditItemId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.RowVersion)
+                .IsRequired()
+                .IsRowVersion()
+                .IsConcurrencyToken();
+            entity.Property(e => e.VarianceReason).HasMaxLength(200);
+
+            entity.HasOne(d => d.Audit).WithMany(p => p.StockAuditItems)
+                .HasForeignKey(d => d.AuditId)
+                .HasConstraintName("FK_StockAuditItems_Audit");
+
+            entity.HasOne(d => d.StockItem).WithMany(p => p.StockAuditItems)
+                .HasForeignKey(d => d.StockItemId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_StockAuditItems_StockItem");
+        });
+
+        modelBuilder.Entity<StockItem>(entity =>
+        {
+            entity.ToTable(tb =>
+                {
+                    tb.HasTrigger("trg_StockItems_ExpiryAlert");
+                    tb.HasTrigger("trg_StockItems_LowStockAlert");
+                    tb.HasTrigger("trg_StockItems_ResolveAlerts");
+                });
+
+            entity.HasIndex(e => e.LastRestockedAt, "IX_Aging").IsDescending();
+
+            entity.HasIndex(e => e.BinLocation, "IX_StockItems_Bin");
+
+            entity.HasIndex(e => e.ExpiryDate, "IX_StockItems_Expiry").HasFilter("([ExpiryDate] IS NOT NULL)");
+
+            entity.HasIndex(e => new { e.AvailableQuantity, e.MinimumStockLevel }, "IX_StockItems_LowStock");
+
+            entity.HasIndex(e => new { e.ProductId, e.VariationId, e.WarehouseId }, "IX_StockItems_Product_Warehouse");
+
+            entity.HasIndex(e => e.Sku, "IX_StockItems_SKU");
+
+            entity.HasIndex(e => new { e.UnitCost, e.AvailableQuantity }, "IX_StockItems_Valuation");
+
+            entity.HasIndex(e => new { e.AvailableQuantity, e.UnitCost }, "IX_Valuation").IsDescending();
+
+            entity.Property(e => e.StockItemId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.BatchNumber).HasMaxLength(100);
+            entity.Property(e => e.BinLocation).HasMaxLength(100);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.RowVersion)
+                .IsRequired()
+                .IsRowVersion()
+                .IsConcurrencyToken();
+            entity.Property(e => e.Sku)
+                .HasMaxLength(100)
+                .HasColumnName("SKU");
+            entity.Property(e => e.UnitCost).HasColumnType("decimal(18, 4)");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(sysutcdatetime())");
+
+            entity.HasOne(d => d.Warehouse).WithMany(p => p.StockItems)
+                .HasForeignKey(d => d.WarehouseId)
+                .HasConstraintName("FK_StockItems_Warehouse");
+        });
+
+        modelBuilder.Entity<StockMovement>(entity =>
+        {
+            entity.HasKey(e => e.MovementId);
+
+            entity.HasIndex(e => e.Quantity, "IX_MovementVolume").IsDescending();
+
+            entity.HasIndex(e => new { e.MovementDate, e.MovementType }, "IX_StockMovements_Date_Type");
+
+            entity.HasIndex(e => new { e.StockItemId, e.MovementDate }, "IX_StockMovements_StockItem_MovementDate").IsDescending(false, true);
+
+            entity.Property(e => e.MovementId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.MovementDate).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.MovementType)
+                .IsRequired()
+                .HasMaxLength(20);
+            entity.Property(e => e.Notes).HasMaxLength(500);
+            entity.Property(e => e.Reason).HasMaxLength(200);
+            entity.Property(e => e.ReferenceType).HasMaxLength(50);
+            entity.Property(e => e.RowVersion)
+                .IsRequired()
+                .IsRowVersion()
+                .IsConcurrencyToken();
+
+            entity.HasOne(d => d.StockItem).WithMany(p => p.StockMovements)
+                .HasForeignKey(d => d.StockItemId)
+                .HasConstraintName("FK_StockMovements_StockItem");
+        });
+
+        modelBuilder.Entity<StockReservation>(entity =>
+        {
+            entity.HasKey(e => e.ReservationId);
+
+            entity.HasIndex(e => e.ReservationStatus, "IX_StockReservations_Active").HasFilter("([ReservationStatus]='Pending')");
+
+            entity.HasIndex(e => new { e.ReservationStatus, e.ExpiresAt }, "IX_StockReservations_Status_Expiry");
+
+            entity.HasIndex(e => e.StockItemId, "IX_StockReservations_StockItem");
+
+            entity.Property(e => e.ReservationId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.ReservationStatus)
+                .IsRequired()
+                .HasMaxLength(20);
+            entity.Property(e => e.ReservationType)
+                .IsRequired()
+                .HasMaxLength(20);
+            entity.Property(e => e.ReservedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.RowVersion)
+                .IsRequired()
+                .IsRowVersion()
+                .IsConcurrencyToken();
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(sysutcdatetime())");
+
+            entity.HasOne(d => d.StockItem).WithMany(p => p.StockReservations)
+                .HasForeignKey(d => d.StockItemId)
+                .HasConstraintName("FK_StockReservations_StockItem");
+        });
+
+        modelBuilder.Entity<StockTransfer>(entity =>
+        {
+            entity.HasKey(e => e.TransferId);
+
+            entity.HasIndex(e => e.EstimatedArrival, "IX_StockTransfers_ETA");
+
+            entity.HasIndex(e => new { e.FromWarehouseId, e.ToWarehouseId }, "IX_StockTransfers_Origin_Target");
+
+            entity.HasIndex(e => e.TransferStatus, "IX_StockTransfers_Status");
+
+            entity.Property(e => e.TransferId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Notes).HasMaxLength(500);
+            entity.Property(e => e.RowVersion)
+                .IsRequired()
+                .IsRowVersion()
+                .IsConcurrencyToken();
+            entity.Property(e => e.TrackingNumber).HasMaxLength(100);
+            entity.Property(e => e.TransferStatus)
+                .IsRequired()
+                .HasMaxLength(20);
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(sysutcdatetime())");
+
+            entity.HasOne(d => d.FromWarehouse).WithMany(p => p.StockTransferFromWarehouses)
+                .HasForeignKey(d => d.FromWarehouseId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_StockTransfers_FromWarehouse");
+
+            entity.HasOne(d => d.ToWarehouse).WithMany(p => p.StockTransferToWarehouses)
+                .HasForeignKey(d => d.ToWarehouseId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_StockTransfers_ToWarehouse");
+        });
+
+        modelBuilder.Entity<StockTransferItem>(entity =>
+        {
+            entity.HasKey(e => e.TransferItemId);
+
+            entity.HasIndex(e => e.StockItemId, "IX_StockTransferItems_StockItem");
+
+            entity.HasIndex(e => e.TransferId, "IX_StockTransferItems_Transfer");
+
+            entity.Property(e => e.TransferItemId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.RowVersion)
+                .IsRequired()
+                .IsRowVersion()
+                .IsConcurrencyToken();
+
+            entity.HasOne(d => d.StockItem).WithMany(p => p.StockTransferItems)
+                .HasForeignKey(d => d.StockItemId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_StockTransferItems_StockItem");
+
+            entity.HasOne(d => d.Transfer).WithMany(p => p.StockTransferItems)
+                .HasForeignKey(d => d.TransferId)
+                .HasConstraintName("FK_StockTransferItems_Transfer");
+        });
+
+        modelBuilder.Entity<Supplier>(entity =>
+        {
+            entity.HasIndex(e => e.SupplierCode, "IX_Suppliers_Code");
+
+            entity.HasIndex(e => e.Rating, "IX_Suppliers_Rating");
+
+            entity.HasIndex(e => e.SupplierCode, "UQ_Suppliers_SupplierCode").IsUnique();
+
+            entity.Property(e => e.SupplierId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.Address).HasMaxLength(500);
+            entity.Property(e => e.ContactPerson).HasMaxLength(200);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.Email).HasMaxLength(200);
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.PaymentTerms).HasMaxLength(200);
+            entity.Property(e => e.Phone).HasMaxLength(50);
+            entity.Property(e => e.Rating).HasColumnType("decimal(4, 2)");
+            entity.Property(e => e.RowVersion)
+                .IsRequired()
+                .IsRowVersion()
+                .IsConcurrencyToken();
+            entity.Property(e => e.SupplierCode)
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(e => e.SupplierName)
+                .IsRequired()
+                .HasMaxLength(200);
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(sysutcdatetime())");
+        });
+
+        modelBuilder.Entity<VwBackorderSummary>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("vw_BackorderSummary");
+
+            entity.Property(e => e.BackorderStatus)
+                .IsRequired()
+                .HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<VwDeadStockCandidate>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("vw_DeadStockCandidates");
+        });
+
+        modelBuilder.Entity<VwExpiryRisk>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("vw_ExpiryRisk");
+        });
+
+        modelBuilder.Entity<VwLowStockItem>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("vw_LowStockItems");
+        });
+
+        modelBuilder.Entity<VwPurchaseOrderStatus>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("vw_PurchaseOrderStatus");
+
+            entity.Property(e => e.OrderStatus)
+                .IsRequired()
+                .HasMaxLength(20);
+            entity.Property(e => e.Ponumber)
+                .IsRequired()
+                .HasMaxLength(50)
+                .HasColumnName("PONumber");
+        });
+
+        modelBuilder.Entity<VwReorderRecommendation>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("vw_ReorderRecommendations");
+        });
+
+        modelBuilder.Entity<VwStockAdjustmentHistory>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("vw_StockAdjustmentHistory");
+
+            entity.Property(e => e.AdjustmentType)
+                .IsRequired()
+                .HasMaxLength(20);
+            entity.Property(e => e.Reason).HasMaxLength(200);
+        });
+
+        modelBuilder.Entity<VwStockAvailableByWarehouse>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("vw_StockAvailableByWarehouse");
+
+            entity.Property(e => e.WarehouseCode)
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(e => e.WarehouseName)
+                .IsRequired()
+                .HasMaxLength(200);
+        });
+
+        modelBuilder.Entity<VwStockMovementHistory>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("vw_StockMovementHistory");
+
+            entity.Property(e => e.MovementType)
+                .IsRequired()
+                .HasMaxLength(20);
+            entity.Property(e => e.Reason).HasMaxLength(200);
+            entity.Property(e => e.ReferenceType).HasMaxLength(50);
+        });
+
+        modelBuilder.Entity<VwStockOverview>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("vw_StockOverview");
+
+            entity.Property(e => e.BatchNumber).HasMaxLength(100);
+            entity.Property(e => e.WarehouseCode)
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(e => e.WarehouseName)
+                .IsRequired()
+                .HasMaxLength(200);
+        });
+
+        modelBuilder.Entity<VwStockReservationStatus>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("vw_StockReservationStatus");
+
+            entity.Property(e => e.ReservationStatus)
+                .IsRequired()
+                .HasMaxLength(20);
+            entity.Property(e => e.ReservationType)
+                .IsRequired()
+                .HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<VwStockTransferStatus>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("vw_StockTransferStatus");
+
+            entity.Property(e => e.TrackingNumber).HasMaxLength(100);
+            entity.Property(e => e.TransferStatus)
+                .IsRequired()
+                .HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<VwStockValuation>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("vw_StockValuation");
+
+            entity.Property(e => e.StockValue).HasColumnType("decimal(29, 4)");
+            entity.Property(e => e.UnitCost).HasColumnType("decimal(18, 4)");
+        });
+
+        modelBuilder.Entity<Warehouse>(entity =>
+        {
+            entity.HasIndex(e => e.IsActive, "IX_Warehouses_IsActive");
+
+            entity.HasIndex(e => e.Priority, "IX_Warehouses_Priority");
+
+            entity.HasIndex(e => e.Type, "IX_Warehouses_Type");
+
+            entity.HasIndex(e => e.WarehouseCode, "IX_Warehouses_WarehouseCode");
+
+            entity.HasIndex(e => e.WarehouseCode, "UQ_Warehouses_WarehouseCode").IsUnique();
+
+            entity.Property(e => e.WarehouseId).HasDefaultValueSql("(newid())");
+            entity.Property(e => e.Address).HasMaxLength(500);
+            entity.Property(e => e.ContactDetails).HasMaxLength(300);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.OperatingHours).HasMaxLength(200);
+            entity.Property(e => e.Priority).HasDefaultValue(1);
+            entity.Property(e => e.RowVersion)
+                .IsRequired()
+                .IsRowVersion()
+                .IsConcurrencyToken();
+            entity.Property(e => e.Type)
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.WarehouseCode)
+                .IsRequired()
+                .HasMaxLength(50);
+            entity.Property(e => e.WarehouseName)
+                .IsRequired()
+                .HasMaxLength(200);
         });
 
         OnModelCreatingPartial(modelBuilder);

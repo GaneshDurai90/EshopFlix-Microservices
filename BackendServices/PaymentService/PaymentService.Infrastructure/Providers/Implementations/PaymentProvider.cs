@@ -53,9 +53,9 @@ namespace PaymentService.Infrastructure.Providers.Implementations
         public  string CreateOrder(RazorPayOrderDTO order)
         {
             Dictionary<string, object> options = new Dictionary<string, object>();
-            options.Add("amount", 50000); // amount in the smallest currency unit
-            options.Add("receipt", "order_rcptid_11");
-            options.Add("currency", "INR");
+            options.Add("amount", order.Amount); // amount in the smallest currency unit (paise)
+            options.Add("receipt", order.Receipt);
+            options.Add("currency", order.Currency ?? "INR");
             Order data = _client.Order.Create(options);
             return  data["id"].ToString();
         }

@@ -47,12 +47,23 @@ namespace eShopFlix.Web.HttpClients
 
                 if (!string.IsNullOrWhiteSpace(accessToken))
                 {
-                    if (TokenNeedsRefresh(accessToken) && !string.IsNullOrWhiteSpace(refreshToken))
+                    // Don't try to refresh if cancellation is already requested
+                    if (!cancellationToken.IsCancellationRequested && 
+                        TokenNeedsRefresh(accessToken) && 
+                        !string.IsNullOrWhiteSpace(refreshToken))
                     {
-                        var refreshed = await TryRefreshWithLockAsync(refreshToken, context, cancellationToken);
-                        if (refreshed != null)
+                        try
                         {
-                            accessToken = refreshed.AccessToken;
+                            var refreshed = await TryRefreshWithLockAsync(refreshToken, context, cancellationToken);
+                            if (refreshed != null)
+                            {
+                                accessToken = refreshed.AccessToken;
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            // Cancellation requested, proceed with existing token
+                            _logger.LogDebug("Token refresh skipped due to cancellation");
                         }
                         // If refresh failed, still try with the existing token (might still be valid)
                     }
@@ -62,12 +73,20 @@ namespace eShopFlix.Web.HttpClients
                         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
                     }
                 }
-                else if (!string.IsNullOrWhiteSpace(refreshToken))
+                else if (!string.IsNullOrWhiteSpace(refreshToken) && !cancellationToken.IsCancellationRequested)
                 {
-                    var refreshed = await TryRefreshWithLockAsync(refreshToken, context, cancellationToken);
-                    if (refreshed != null)
+                    try
                     {
-                        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", refreshed.AccessToken);
+                        var refreshed = await TryRefreshWithLockAsync(refreshToken, context, cancellationToken);
+                        if (refreshed != null)
+                        {
+                            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", refreshed.AccessToken);
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Cancellation requested, proceed without token
+                        _logger.LogDebug("Token refresh skipped due to cancellation");
                     }
                 }
             }
@@ -96,11 +115,18 @@ namespace eShopFlix.Web.HttpClients
 
         private async Task<TokenResponseModel?> TryRefreshWithLockAsync(string refreshToken, HttpContext context, CancellationToken cancellationToken)
         {
-            // Use a lock to prevent multiple concurrent refresh attempts
-            var acquired = await _refreshLock.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+            // Use a separate cancellation token for refresh - don't let caller's short timeout kill refresh
+            // Token refresh should have its own reasonable timeout
+            using var refreshCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            
+            // But still respect if the original token is cancelled
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(refreshCts.Token);
+            
+            // Use a short lock timeout - if another request is refreshing, just use existing token
+            var acquired = await _refreshLock.WaitAsync(TimeSpan.FromMilliseconds(500), linkedCts.Token);
             if (!acquired)
             {
-                _logger.LogWarning("Could not acquire refresh lock, skipping token refresh");
+                _logger.LogDebug("Could not acquire refresh lock quickly, using existing token");
                 return null;
             }
 
@@ -113,7 +139,8 @@ namespace eShopFlix.Web.HttpClients
                     return new TokenResponseModel { AccessToken = currentAccessToken };
                 }
 
-                return await TryRefreshAsync(refreshToken, context, cancellationToken);
+                // Use the refresh-specific cancellation token, not the caller's
+                return await TryRefreshAsync(refreshToken, context, refreshCts.Token);
             }
             finally
             {
@@ -144,9 +171,10 @@ namespace eShopFlix.Web.HttpClients
                 // Don't clear cookies on network errors - the token might still be valid
                 return null;
             }
-            catch (TaskCanceledException ex) when (ex.InnerException is TimeoutException)
+            catch (OperationCanceledException ex)
             {
-                _logger.LogWarning(ex, "Token refresh timed out");
+                // Handle both TaskCanceledException and OperationCanceledException
+                _logger.LogDebug(ex, "Token refresh cancelled or timed out");
                 return null;
             }
             catch (Exception ex)

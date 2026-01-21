@@ -16,8 +16,196 @@
    "T4TemplatePath": null,
    "Tables": [
       {
-         "Name": "[dbo].[Stocks]",
+         "Name": "[dbo].[BackorderItems]",
          "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[InboxMessages]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[OutboxMessages]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[PurchaseOrderItems]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[PurchaseOrders]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[StockAdjustments]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[StockAlerts]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[StockAllocationRules]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[StockAudit]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[StockAuditItems]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[StockItems]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[StockMovements]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[StockReservations]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[StockTransferItems]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[StockTransfers]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[Suppliers]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[Warehouses]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[vw_BackorderSummary]",
+         "ObjectType": 3
+      },
+      {
+         "Name": "[dbo].[vw_DeadStockCandidates]",
+         "ObjectType": 3
+      },
+      {
+         "Name": "[dbo].[vw_ExpiryRisk]",
+         "ObjectType": 3
+      },
+      {
+         "Name": "[dbo].[vw_LowStockItems]",
+         "ObjectType": 3
+      },
+      {
+         "Name": "[dbo].[vw_PurchaseOrderStatus]",
+         "ObjectType": 3
+      },
+      {
+         "Name": "[dbo].[vw_ReorderRecommendations]",
+         "ObjectType": 3
+      },
+      {
+         "Name": "[dbo].[vw_StockAdjustmentHistory]",
+         "ObjectType": 3
+      },
+      {
+         "Name": "[dbo].[vw_StockAvailableByWarehouse]",
+         "ObjectType": 3
+      },
+      {
+         "Name": "[dbo].[vw_StockMovementHistory]",
+         "ObjectType": 3
+      },
+      {
+         "Name": "[dbo].[vw_StockOverview]",
+         "ObjectType": 3
+      },
+      {
+         "Name": "[dbo].[vw_StockReservationStatus]",
+         "ObjectType": 3
+      },
+      {
+         "Name": "[dbo].[vw_StockTransferStatus]",
+         "ObjectType": 3
+      },
+      {
+         "Name": "[dbo].[vw_StockValuation]",
+         "ObjectType": 3
+      },
+      {
+         "Name": "[dbo].[SP_AdjustStock]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_ApplyAuditVariance]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_CommitStockReservation]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_CompleteStockTransfer]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_CreateStockTransfer]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_DecreaseStock]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_ExpireStockBatches]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_FulfillBackorder]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_GetInventoryTurnover]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_GetStockAgingSummary]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_IdentifyDeadStock]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_IncreaseStock]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_RecalculateSafetyStock]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_ReceivePurchaseOrderItem]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_ReleaseExpiredReservations]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_ReserveStock]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_TriggerLowStockAlerts]",
+         "ObjectType": 1
+      },
+      {
+         "Name": "[dbo].[SP_TriggerOverStockAlerts]",
+         "ObjectType": 1
       }
    ],
    "UiHint": null,

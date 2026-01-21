@@ -139,10 +139,11 @@ app.UseCors("AllowFrontend");
 app.UseAuthentication();
 
 // Example: do NOT enforce fallback auth for /catalog in dev
+// Also skip /cart for now during development - frontend handles auth via cookies
 app.UseWhen(
     ctx => !ctx.Request.Path.StartsWithSegments("/catalog", StringComparison.OrdinalIgnoreCase)
+           && !ctx.Request.Path.StartsWithSegments("/cart", StringComparison.OrdinalIgnoreCase) // Skip cart auth at gateway - let backend handle it
            && (ctx.Request.Path.StartsWithSegments("/product", StringComparison.OrdinalIgnoreCase)
-               || ctx.Request.Path.StartsWithSegments("/cart", StringComparison.OrdinalIgnoreCase)
                || ctx.Request.Path.StartsWithSegments("/payment", StringComparison.OrdinalIgnoreCase)
                || ctx.Request.Path.StartsWithSegments("/order", StringComparison.OrdinalIgnoreCase)),
     appBuilder =>

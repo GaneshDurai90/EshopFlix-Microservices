@@ -1,17 +1,20 @@
 ﻿using System.Text.Json;
 using System.Text;
 using eShopFlix.Web.Models;
+using eShopFlix.Web.Models.Stock;
 
 namespace eShopFlix.Web.HttpClients
 {
     public class CartServiceClient
     {
         private readonly HttpClient _client;
+        private readonly StockServiceClient? _stockClient;
         private static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
 
-        public CartServiceClient(HttpClient client)
+        public CartServiceClient(HttpClient client, StockServiceClient? stockClient = null)
         {
             _client = client;
+            _stockClient = stockClient;
         }
 
         // Header helpers
@@ -20,13 +23,31 @@ namespace eShopFlix.Web.HttpClients
             // Correlation
             req.Headers.TryAddWithoutValidation("x-correlation-id", Guid.NewGuid().ToString("N"));
 
-            // Idempotency only for write operations
+            // Idempotency - NOTE: For cart mutations that can be repeated (like add item),
+            // we should NOT use deterministic keys since the same item can be added multiple times.
+            // Instead, generate a unique key per request to prevent duplicate submissions only
+            // during network retries (within a short window).
             if (idempotencyPayload != null)
             {
+                // Include timestamp to make key unique per request attempt
+                var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                var uniquePayload = $"{idempotencyPayload}:{timestamp}";
                 var key = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-                    Encoding.UTF8.GetBytes(idempotencyPayload)));
+                    Encoding.UTF8.GetBytes(uniquePayload)));
                 req.Headers.TryAddWithoutValidation("x-idempotency-key", key);
             }
+        }
+        
+        /// <summary>
+        /// Adds headers for operations that truly should be idempotent (same key returns same result).
+        /// Use this for operations like "clear cart" where repeating should be safe.
+        /// </summary>
+        private static void AddIdempotentHeaders(HttpRequestMessage req, string deterministicKey)
+        {
+            req.Headers.TryAddWithoutValidation("x-correlation-id", Guid.NewGuid().ToString("N"));
+            var key = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                Encoding.UTF8.GetBytes(deterministicKey)));
+            req.Headers.TryAddWithoutValidation("x-idempotency-key", key);
         }
 
         public async Task<CartModel?> GetUserCartAsync(long UserId)
@@ -45,15 +66,76 @@ namespace eShopFlix.Web.HttpClients
 
         public async Task<CartModel?> AddToCartAsync(CartItemModel item, long UserId)
         {
-            var payloadJson = JsonSerializer.Serialize(item);
+            // Map to the format expected by CartService API (CartItem entity)
+            var payload = new
+            {
+                ItemId = item.ItemId,
+                UnitPrice = item.UnitPrice,
+                Quantity = item.Quantity,
+                Sku = string.Empty,
+                ProductName = item.Name ?? string.Empty,
+                TaxCategory = (string?)null,
+                DiscountAmount = 0m,
+                ProductSnapshotJson = (string?)null,
+                VariantJson = (string?)null,
+                IsGift = false,
+                ParentItemId = (int?)null
+            };
+            
+            var payloadJson = JsonSerializer.Serialize(payload);
             using var req = new HttpRequestMessage(HttpMethod.Post, $"cart/additem/{UserId}")
             {
                 Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
             };
-            AddCommonHeaders(req, $"add:{UserId}:{payloadJson}");
+            
+            // For AddToCart, use a unique key per request since:
+            // 1. Same item can be added multiple times legitimately
+            // 2. We only want to prevent duplicate submissions from network retries
+            AddCommonHeaders(req, $"add:{UserId}:{item.ItemId}:{item.Quantity}");
+            
             using var resp = await _client.SendAsync(req);
-            if (!resp.IsSuccessStatusCode) return null;
+            
+            if (!resp.IsSuccessStatusCode)
+            {
+                // Log the error response for debugging
+                var errorContent = await resp.Content.ReadAsStringAsync();
+                System.Diagnostics.Debug.WriteLine($"AddToCart failed: {resp.StatusCode} - {errorContent}");
+                return null;
+            }
+            
             return await resp.Content.ReadFromJsonAsync<CartModel>(JsonOpts);
+        }
+
+        /// <summary>
+        /// Add item to cart with stock reservation.
+        /// </summary>
+        public async Task<(CartModel? Cart, ReservationResultModel? Reservation)> AddToCartWithReservationAsync(
+            CartItemModel item, long userId, long? cartId = null)
+        {
+            // First add to cart
+            var cart = await AddToCartAsync(item, userId);
+            if (cart is null)
+            {
+                return (null, null);
+            }
+
+            // Try to reserve stock if stock client is available
+            ReservationResultModel? reservation = null;
+            if (_stockClient is not null)
+            {
+                reservation = await _stockClient.ReserveStockAsync(
+                    item.ItemId,
+                    item.Quantity,
+                    cart.Id,
+                    userId,
+                    null // variationId - would need to be added to CartItemModel
+                );
+
+                // If reservation failed, we could optionally remove from cart
+                // For now, we allow adding without reservation (graceful degradation)
+            }
+
+            return (cart, reservation);
         }
 
         public async Task<int> DeleteCartItemAsync(long CartId, int ItemId)

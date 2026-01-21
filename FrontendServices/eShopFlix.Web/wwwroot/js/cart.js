@@ -135,23 +135,87 @@ const wireQuantityButtons = () => {
 };
 
 function addToCart(ItemId, Name, UnitPrice, Quantity) {
+    // Disable button and show loading state
+    const buttons = document.querySelectorAll(`button[onclick*="addToCart('${ItemId}'"]`);
+    buttons.forEach(btn => {
+        btn.disabled = true;
+        btn.dataset.originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Adding...';
+    });
+
     $.ajax({
         type: "GET",
         contentType: "application/json; charset=utf-8",
         url: '/Cart/AddToCart/' + ItemId + "/" + UnitPrice + "/" + Quantity,
+        timeout: 15000, // 15 second timeout
         success: function (response) {
+            console.log('AddToCart response:', response);
             if (response !== undefined && response.status === 'success') {
                 var counter = response.count;
                 setCartBadge(counter);
+                // Show success feedback
+                showToast('Added to cart!', 'success');
+            } else if (response.error) {
+                console.error('AddToCart error:', response.error);
+                showToast(response.error, 'danger');
+            } else {
+                console.error('AddToCart unknown failure:', response);
+                showToast('Failed to add to cart', 'warning');
             }
         },
         complete: function () {
-            refreshCartCounter(true); // Force refresh after add
+            // Restore button state
+            buttons.forEach(btn => {
+                btn.disabled = false;
+                if (btn.dataset.originalHtml) {
+                    btn.innerHTML = btn.dataset.originalHtml;
+                }
+            });
+            refreshCartCounter(true);
         },
-        error: function (xhr) {
-            console.error('AddToCart failed', xhr.responseText);
+        error: function (xhr, status, error) {
+            console.error('AddToCart AJAX failed', status, error, xhr.responseText);
+            if (status === 'timeout') {
+                showToast('Request timed out. Please try again.', 'warning');
+            } else {
+                showToast('Failed to add to cart: ' + (error || status), 'danger');
+            }
         }
     });
+}
+
+// Simple toast notification function
+function showToast(message, type) {
+    // Create toast container if it doesn't exist
+    let container = document.getElementById('toastContainer');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.className = 'position-fixed top-0 end-0 p-3';
+        container.style.zIndex = '1100';
+        document.body.appendChild(container);
+    }
+
+    const toastId = 'toast_' + Date.now();
+    const bgClass = type === 'success' ? 'bg-success' : type === 'danger' ? 'bg-danger' : 'bg-warning';
+    
+    const toastHtml = `
+        <div id="${toastId}" class="toast align-items-center text-white ${bgClass} border-0" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    `;
+    
+    container.insertAdjacentHTML('beforeend', toastHtml);
+    
+    const toastEl = document.getElementById(toastId);
+    const toast = new bootstrap.Toast(toastEl, { autohide: true, delay: 3000 });
+    toast.show();
+    
+    // Remove after hidden
+    toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
 }
 
 async function deleteItem(id, cartId) {
